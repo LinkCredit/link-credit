@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.env
+.env.local
+*.log
+bun.lock
+
+# Foundry
+packages/contracts/out/
+packages/contracts/cache/
+
+# Frontend
+packages/frontend/.vite/

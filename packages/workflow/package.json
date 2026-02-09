@@ -1,0 +1,14 @@
+{
+  "name": "@link-credit/workflow",
+  "private": true,
+  "version": "0.0.1",
+  "scripts": {
+    "build": "bun run build:workflow",
+    "build:workflow": "echo 'TODO: CRE workflow build'",
+    "test": "bun test"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}

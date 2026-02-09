@@ -1,0 +1,14 @@
+{
+  "name": "link-credit",
+  "private": true,
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "build": "bun run --filter '*' build",
+    "dev:api": "bun run --filter @link-credit/api dev",
+    "dev:frontend": "bun run --filter @link-credit/frontend dev",
+    "test": "bun run --filter '*' test"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}
