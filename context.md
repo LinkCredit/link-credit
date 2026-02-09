@@ -16,7 +16,7 @@ CRE 的 **Confidential HTTP**（2月14日上线）恰好解决这个鸡和蛋的
 
 ## MVP 切法（小而精）
 
-不要做一个完整借贷协议。只做"信用评分预言机"这一层——一个 CRE workflow，输入是用户授权的 Plaid/银行 API token，通过 Confidential HTTP 调用，AI 模型（可以调 LLM API）解析返回的金融数据并生成 0-100 信用分，将分数上链。然后写一个极简的示范合约展示：分数 > 70 的用户可以以 110% 抵押率借贷（而不是 150%）。
+不要从零写借贷协议。做两件事：1) **信用评分预言机**——一个 CRE workflow，输入是用户授权的 Plaid/银行 API token，通过 Confidential HTTP 调用，AI 模型解析金融数据并生成 0-100 信用分，将分数上链。2) **Fork Aave v3**——在 Aave 的核心 LTV 计算中注入信用分 boost（~10 行改动），让高信用分用户以更低抵押率借贷。不是玩具合约，是真正的 Aave 协议在读取你的信用分。
 
 ## 为什么评审会喜欢？
 
@@ -50,8 +50,9 @@ Plaid API 可能在 hackathon 环境下难搭。**对策**：用 mock API 模拟
                        │
 ┌──────────────────────▼──────────────────────────┐
 │  Layer 1: Solidity 合约（Sepolia testnet）        │
-│  CreditOracle.sol ← 存储信用分                    │
-│  CreditLendingPool.sol ← 根据分数动态调抵押率      │
+│  CreditOracle.sol ← 存储信用分 + 计算 LTV boost  │
+│  Fork Aave v3 ← 修改 GenericLogic，注入信用分     │
+│  → 用户信用分越高，借贷所需抵押率越低               │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -135,32 +136,54 @@ const onCronTrigger = (runtime: Runtime<Config>): string => {
 
 #### Solidity 合约（第一周同步写）
 
+**借贷层：Fork Aave v3**（详见 [aave-fork.md](./aave-fork.md)）
+
+不写玩具合约，直接 fork `aave-dao/aave-v3-origin`（Foundry 原生，v3.6），在 Aave 的核心 LTV 计算函数里注入信用分 boost。改动量极小（~10 行核心逻辑 + 参数透传），但效果是：信用分直接影响 Aave 协议的借贷能力计算、清算逻辑、前端显示——全链路打通。
+
+**CreditOracle.sol**（我们自己的合约）：
+
 ```solidity
-// CreditOracle.sol — 极简版
+// CreditOracle.sol — 信用分存储 + LTV boost 计算
 contract CreditOracle {
-    mapping(address => uint256) public creditScores;      // 0-100
-    mapping(address => uint256) public collateralRatios;   // 100-200, 单位%
-    address public creWorkflowAddress;  // 只有CRE workflow能写入
+    mapping(address => uint256) public creditScores;  // 0-10000 (bps)
+    address public creWorkflow;  // 只有 CRE workflow 能写入
+    uint256 public constant MAX_LTV_BOOST_BPS = 1500; // 最大 boost 15%
 
-    function updateScore(address user, uint256 score, uint256 ratio) external {
-        require(msg.sender == creWorkflowAddress);
+    function updateScore(address user, uint256 score) external {
+        require(msg.sender == creWorkflow || msg.sender == owner());
         creditScores[user] = score;
-        collateralRatios[user] = ratio;
     }
-}
 
-// CreditLendingPool.sol — 极简借贷演示
-contract CreditLendingPool {
-    CreditOracle public oracle;
-
-    function borrow(uint256 amount) external payable {
-        uint256 ratio = oracle.collateralRatios(msg.sender);
-        if (ratio == 0) ratio = 150; // 无评分默认150%
-        require(msg.value * 100 >= amount * ratio, "Insufficient collateral");
-        // ... 发放贷款逻辑
+    // 线性 boost: score 8000 (80/100) → boost = 1500 * 8000 / 10000 = 1200 bps (12%)
+    function getLtvBoost(address user) external view returns (uint256) {
+        uint256 score = creditScores[user];
+        if (score == 0) return 0;
+        return (MAX_LTV_BOOST_BPS * score) / 10000;
     }
 }
 ```
+
+**Aave 修改核心**（在 `GenericLogic.calculateUserAccountData()` 中）：
+
+```solidity
+// 在原有 LTV 获取之后，加入信用分 boost
+if (params.creditOracle != address(0) && vars.ltv != 0) {
+    uint256 boost = ICreditOracle(params.creditOracle).getLtvBoost(params.user);
+    uint256 liqThreshold = currentReserve.configuration.getLiquidationThreshold();
+    uint256 boostedLtv = vars.ltv + boost;
+    if (boostedLtv > liqThreshold - 100) {
+        boostedLtv = liqThreshold - 100; // 1% 安全边际
+    }
+    vars.ltv = boostedLtv;
+}
+```
+
+**Demo 参数**（故意压低 base LTV 让对比更明显）：
+- Base LTV: 50%（无信用分的标准 DeFi 超额抵押）
+- 清算阈值: 75%
+- 最大信用 boost: 15%
+- 信用分 80/100 的用户: 有效 LTV = 62% → 抵押率 ~161%（vs 无分数的 200%）
+- 信用分 100/100 的用户: 有效 LTV = 65% → 抵押率 ~154%
 
 ### 第二周（2/14 起）：切换到 Confidential HTTP
 
@@ -212,10 +235,10 @@ const fetchFinancialDataConfidential = async (nodeRuntime: NodeRuntime<Config>) 
 
 五分钟视频里你能展示的完整故事线：
 
-1. **开场**（30秒）：展示 DeFi 借贷的痛点——"用户想借 $1000，需要锁 $1500+，这不是信贷，是典当"
-2. **用户流程演示**（90秒）：连钱包 → 授权银行数据评估 → CRE workflow 执行（展示 CLI simulation 输出日志，清晰可见每一步：Confidential HTTP 调用、AI 评分、链上写入） → 前端实时刷新信用分（比如 82/100） → 显示 "你的个性化抵押率：115%"（而不是默认的 150%）
-3. **借贷演示**（60秒）：存入 $1150 collateral → 成功借出 $1000 → 对比没有信用分的用户需要存 $1500
-4. **技术亮点**（60秒）：展示 Confidential HTTP 如何保护银行数据——"原始金融数据从未离开 TEE，链上只记录了评分结果"。展示合约代码中 CRE workflow 是唯一写入者。AI 评分经过 DON 多节点共识取中位数，防止单点操纵
+1. **开场**（30秒）：展示 DeFi 借贷的痛点——"用户想借 $1000，需要锁 $2000，这不是信贷，是典当"
+2. **用户流程演示**（90秒）：连钱包 → 授权银行数据评估 → CRE workflow 执行（展示 CLI simulation 输出日志，清晰可见每一步：Confidential HTTP 调用、AI 评分、链上写入） → 前端实时刷新信用分（比如 82/100） → 显示 "你的个性化抵押率：161%"（而不是默认的 200%）
+3. **借贷演示**（60秒）：在 Fork 的 Aave v3 上操作——存入 $1610 collateral → 成功借出 $1000 → 对比没有信用分的用户需要存 $2000。这不是玩具合约，是真正的 Aave 协议在读取信用分
+4. **技术亮点**（60秒）：展示 Confidential HTTP 如何保护银行数据——"原始金融数据从未离开 TEE，链上只记录了评分结果"。展示 Aave GenericLogic 的修改——仅 10 行代码就让整个协议支持信用评分。AI 评分经过 DON 多节点共识取中位数，防止单点操纵
 5. **未来展望**（30秒）：接入真实的 Plaid/银行 open banking API → 多协议复用同一个 credit oracle → 构建链上信用历史
 
 ---

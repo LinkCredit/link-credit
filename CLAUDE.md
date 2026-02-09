@@ -11,12 +11,12 @@ AI-powered privacy credit scoring for low-collateral DeFi lending. Built for the
 ```
 L3: React DApp (frontend) — wallet connect, authorize eval, view score, borrow
 L2: CRE Workflow (TypeScript) — Confidential HTTP → AI scoring → on-chain write
-L1: Solidity Contracts (Sepolia) — CreditOracle.sol + CreditLendingPool.sol
+L1: Solidity Contracts (Sepolia) — CreditOracle.sol + Fork Aave v3 (modified GenericLogic)
 ```
 
 ## Tech Stack
 
-- **Contracts**: Solidity, Foundry (Sepolia testnet)
+- **Contracts**: Solidity, Foundry (Sepolia testnet), Fork of `aave-dao/aave-v3-origin` (v3.6)
 - **CRE Workflow**: TypeScript, `@chainlink/cre-sdk`, compiled to WASM
 - **Mock API + AI Scoring**: TypeScript (Bun), deployed to Vercel/Railway
 - **Frontend**: React + wagmi/viem + TailwindCSS
@@ -32,9 +32,10 @@ L1: Solidity Contracts (Sepolia) — CreditOracle.sol + CreditLendingPool.sol
 
 ## Contracts
 
-- `CreditOracle.sol` — stores per-user credit scores (0-100) and collateral ratios (100-200%)
-- `CreditLendingPool.sol` — reads oracle, enforces dynamic collateral requirements
+- `CreditOracle.sol` — stores per-user credit scores (0-10000 bps), computes LTV boost
+- **Fork Aave v3** (`aave-v3-origin`) — modified `GenericLogic.calculateUserAccountData()` to read credit boost from CreditOracle, ~10 lines core change
 - Only the CRE workflow address can write to the oracle
+- See `aave-fork.md` for detailed Aave fork architecture
 
 ## Build & Dev Commands
 
@@ -65,6 +66,7 @@ houston/
 │   ├── api/                # @link-credit/api — Mock bank API + AI scoring (Hono)
 │   └── frontend/           # @link-credit/frontend — React DApp (Vite)
 ├── context.md              # Original architecture plan (Chinese)
+├── aave-fork.md            # Aave v3 fork technical details (Chinese)
 └── CLAUDE.md               # This file
 ```
 
