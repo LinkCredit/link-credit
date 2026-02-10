@@ -21,16 +21,16 @@
 ```
 Frontend (Plaid Link 完成) → public_token + walletAddress → 触发 CRE
 
-CRE Workflow (5 个 HTTP 请求预算):
+CRE Workflow (4/5 HTTP 请求):
   [1] Plaid /item/public_token/exchange → access_token
   [2] Plaid /accounts/balance/get → 余额
   [3] Plaid /transactions/get → 交易记录
-  [4] 本地聚合 → FinancialProfile
-  [5] OpenAI API → AI 信用评分 (consensusMedianAggregation)
+  ──  本地聚合 → FinancialProfile + 规则评分（非 HTTP，不占配额）
+  [4] OpenAI API → AI 信用评分
+  ──  加权合并（规则评分 + AI 评分）→ 最终分数 (consensusMedianAggregation)
   └─ EVMClient → CreditOracle.updateScore(walletAddress, score)
 ```
 
-砍掉 `/identity/get`，预留 1 个请求给重试。
 
 ## Secrets（DON Vault）
 

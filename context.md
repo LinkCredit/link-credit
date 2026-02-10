@@ -79,12 +79,13 @@ CRE SDK 给你的核心能力是：**HTTPClient**（发 HTTP 请求，含 Confid
 用普通 HTTPClient 把整个 flow 跑通（Confidential HTTP 还没上线）。CRE Workflow 直接调 Plaid + OpenAI，不经过后端：
 
 ```
-CRE Workflow (5 个 HTTP 请求预算):
+CRE Workflow (4/5 HTTP 请求):
   [1] Plaid /item/public_token/exchange → access_token
   [2] Plaid /accounts/balance/get → 余额
   [3] Plaid /transactions/get → 交易记录
-  [4] 本地聚合 → FinancialProfile
-  [5] OpenAI API → AI 信用评分 (consensusMedianAggregation)
+  ──  本地聚合 → FinancialProfile + 规则评分（非 HTTP，不占配额）
+  [4] OpenAI API → AI 信用评分
+  ──  加权合并（规则评分 + AI 评分）→ 最终分数 (consensusMedianAggregation)
   └─ EVMClient → CreditOracle.updateScore(walletAddress, score)
 ```
 
