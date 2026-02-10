@@ -4,13 +4,14 @@
 
 AI-powered privacy credit scoring for low-collateral DeFi lending. Built for the [Chainlink Hackathon](https://chain.link/hackathon) (Privacy + DeFi tracks).
 
-**Core flow**: User authorizes bank data → CRE Workflow fetches via Confidential HTTP → AI scores credit (0-100) → Score written on-chain → Lending pool offers lower collateral ratio.
+**Core flow**: User authorizes bank data (Plaid Link) → CRE Workflow exchanges token + fetches bank data + AI scores credit (0-100) via Confidential HTTP → Score written on-chain → Lending pool offers lower collateral ratio.
 
 ## Architecture
 
 ```
-L3: React DApp (frontend) — wallet connect, authorize eval, view score, borrow
-L2: CRE Workflow (TypeScript) — Confidential HTTP → AI scoring → on-chain write
+L3: React DApp (frontend) — wallet connect, Plaid Link auth, view score, borrow
+L2: CRE Workflow (TypeScript) — token exchange + Confidential HTTP (Plaid data) → AI scoring → on-chain write
+L1.5: Serverless Function — Plaid Link token creation only (Cloudflare Worker)
 L1: Solidity Contracts (Sepolia) — CreditOracle.sol + Fork Aave v3 (modified GenericLogic)
 ```
 
@@ -18,7 +19,7 @@ L1: Solidity Contracts (Sepolia) — CreditOracle.sol + Fork Aave v3 (modified G
 
 - **Contracts**: Solidity, Foundry (Sepolia testnet), Fork of `aave-dao/aave-v3-origin` (v3.6)
 - **CRE Workflow**: TypeScript, `@chainlink/cre-sdk`, compiled to WASM
-- **Mock API + AI Scoring**: TypeScript (Bun), deployed to Vercel/Railway
+- **Serverless**: Cloudflare Worker (Plaid Link token creation only, ~10 lines)
 - **Frontend**: React + wagmi/viem + TailwindCSS
 - **Package manager**: bun (preferred), pnpm as fallback
 
@@ -29,6 +30,8 @@ L1: Solidity Contracts (Sepolia) — CreditOracle.sol + Fork Aave v3 (modified G
 - AI inference must be done via **external HTTP API** calls
 - Multi-node execution with **BFT consensus** (use `cre.consensusMedianAggregation`)
 - Confidential HTTP: API keys stored in Vault DON, data processed in TEE
+- **No HTTP response** — CRE writes results on-chain, cannot return data to frontend
+- Max 5 HTTP requests per execution — budget carefully (Plaid calls + AI scoring)
 
 ## Contracts
 
@@ -44,7 +47,6 @@ L1: Solidity Contracts (Sepolia) — CreditOracle.sol + Fork Aave v3 (modified G
 bun install
 
 # Run dev servers
-bun run dev:api        # Mock API + AI scoring
 bun run dev:frontend   # React DApp
 
 # Build all
@@ -63,7 +65,7 @@ houston/
 ├── packages/
 │   ├── contracts/          # @link-credit/contracts — Foundry (Solidity)
 │   ├── workflow/           # @link-credit/workflow — CRE workflow (TS → WASM)
-│   ├── api/                # @link-credit/api — Mock bank API + AI scoring (Hono)
+│   ├── api/                # @link-credit/api — Serverless (Cloudflare Worker, Plaid Link token only)
 │   └── frontend/           # @link-credit/frontend — React DApp (Vite)
 ├── context.md              # Original architecture plan (Chinese)
 ├── aave-fork.md            # Aave v3 fork technical details (Chinese)

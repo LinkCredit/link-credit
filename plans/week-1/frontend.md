@@ -51,23 +51,24 @@
   - `TestnetERC20` — `approve()`, `balanceOf()`, `mint()`（测试用 faucet）
 - [ ] 合约地址从配置文件/环境变量读取
 
-## 4. 信用评估流程（Plaid Link 集成）
+## 4. 信用评估流程（Plaid Link + CRE Workflow）
 
-前端直接集成 Plaid Link + API，完整的真实流程：
+前端集成 Plaid Link，授权完成后触发 CRE Workflow，结果通过链上事件返回：
 
 1. 用户点击 "Evaluate My Credit"
-2. 前端调 API `POST /api/plaid/create-link-token` → 拿到 `link_token`
+2. 前端调 Serverless `POST /api/plaid/create-link-token` → 拿到 `link_token`
 3. 用 `link_token` 初始化 Plaid Link UI（`react-plaid-link` 组件）
 4. 用户在 Plaid Link 中选择银行、输入测试凭证（`user_good`/`pass_good`）
-5. Plaid Link 返回 `public_token` → 前端调 API `POST /api/plaid/exchange-token`（附带钱包地址）
-6. 前端调 API `POST /api/evaluate`（附带钱包地址）→ API 拉 Plaid 数据 → AI 评分
-7. API 返回评分结果 → 前端显示分数
-8. 链上写入：Week 1 由 API 后端用 deployer 私钥调 `CreditOracle.updateScore()`；Week 2 改为 CRE workflow
+5. Plaid Link 返回 `public_token`
+6. 前端触发 CRE Workflow，传入 `public_token` + `walletAddress`
+7. 前端显示 loading 状态，监听链上 `ScoreUpdated` 事件
+8. CRE Workflow 执行（token 交换 → 银行数据获取 → AI 评分 → 写链上）
+9. 前端收到 `ScoreUpdated` 事件 → 显示信用分和有效抵押率
 
 ### 依赖
 
 - [ ] 安装 `react-plaid-link`（Plaid 官方 React 组件）
-- [ ] API base URL 从环境变量读取
+- [ ] Serverless API base URL 从环境变量读取
 
 ## 5. UI/UX 要点
 
@@ -89,7 +90,7 @@
 1. 钱包连接功能正常
 2. 能读取并显示链上信用分
 3. Plaid Link 集成完成（真实的银行授权流程）
-4. 信用评估端到端可用（Plaid → AI → 显示分数）
+4. 信用评估触发 CRE Workflow + 监听链上事件获取结果
 5. 能执行 supply + borrow 操作
 6. 对比展示 UI（无分数 vs 有分数）
 7. 基本的 loading/error 状态处理
@@ -97,7 +98,7 @@
 ## 依赖关系
 
 - **依赖 `contracts`**: 需要合约 ABI + Sepolia 部署地址
-- **依赖 `api`**: Plaid Link 流程 + 信用评估 endpoint
+- **依赖 `api`**: Serverless function 提供 Plaid Link token
 - 输出：可演示的 DApp → Demo 视频录制
 
 ## 优先级排序
