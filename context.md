@@ -165,3 +165,91 @@ if (params.creditOracle != address(0) && vars.ltv != 0) {
 **最大风险**：Confidential HTTP 在 2/14 开放 early access，但文档和 API 可能不稳定，或需要申请 early access 排队。
 
 **Plan B**：即使 Confidential HTTP 用不上，你仍然可以用普通 HTTPClient + CRE Secrets 管理（存 API key）来构建。在视频演示中说明 "this workflow is designed for Confidential HTTP, currently running in simulation mode with standard HTTP, and will migrate to Confidential HTTP once GA" ——评审理解这是 early access 的限制，你的架构设计已经到位了，这就够了。往届获奖项目很多也只是模拟/testnet 级别。
+
+---
+
+## World ID + World Mini App 集成方案
+
+### 为什么需要 World ID？
+
+信用评分系统最大的漏洞是**女巫攻击**：一个人创建多个钱包，每个钱包都获取一个信用分，然后用多个"高信用"身份同时借贷。World ID 提供零知识证明的**人格证明（proof-of-personhood）**——证明用户是唯一真人，不泄露身份信息。每个真人对应一个唯一的 `nullifier_hash`（per app + per action），写入合约后即可在链上强制执行"一人一分"。
+
+此外，World ID 的验证等级本身就是一个**信任信号**，可以作为 AI 信用评分的输入因子。
+
+### 集成方式：门槛 + AI 评分因子（组合方案）
+
+**1) 门槛（防女巫）**：用户必须先通过 World ID 验证，才能触发 Plaid Link 授权和信用评分流程。`nullifier_hash` 随信用分一起写入 CreditOracle 合约，合约层强制一个 nullifier 只能绑定一个钱包地址。
+
+**2) AI 评分因子**：`verification_level`（Orb / Device）作为 CRE Workflow 中 AI 评分 prompt 的输入参数。Orb 验证（虹膜生物识别）= 更高信任等级 = AI 在评分时可以给予更高的信任权重。这不是简单的加分，而是让 AI 在评估银行数据时，将身份验证强度作为风险因子之一。
+
+### 验证等级
+
+| 等级 | 强度 | 说明 |
+|------|------|------|
+| Orb | 强 | 虹膜生物识别，唯一性最强 |
+| Document | 中高 | 护照/证件验证 |
+| Device | 中 | 设备唯一性检查 |
+
+**链上验证仅支持 Orb 等级**。我们选择 Cloud 验证，支持所有等级。
+
+### 架构决策：Cloud 验证（非链上 ZKP）
+
+选择 Cloud 验证而非链上 ZKP 验证：
+- **更简单**：后端一个 HTTP POST 到 `https://developer.worldcoin.org/api/v2/verify/{app_id}` 即可，~20 行代码
+- **更灵活**：支持 Device + Orb 所有等级（链上仅支持 Orb）
+- **防女巫仍在链上**：`nullifier_hash` 写入 CreditOracle 合约，合约层强制一人一分
+- **Hackathon 够用**：Cloud 验证 + 链上 nullifier 提供 90% 的安全性，10% 的实现成本
+
+### 合约改动
+
+CreditOracle 增加 nullifier 映射：
+
+```
+mapping(bytes32 => address) nullifierToWallet   // nullifier → 钱包（防一人多钱包）
+mapping(address => bytes32) walletToNullifier   // 钱包 → nullifier（反向查询）
+
+updateScore(address user, uint256 score, bytes32 nullifierHash)
+  → 检查 nullifier 未被其他钱包使用 → 绑定 → 写入分数
+
+isVerified(address user) → bool  // 查询是否已通过 World ID
+```
+
+### 修改后的用户流程
+
+```
+连钱包 → World ID 验证（获取 nullifier_hash + verification_level）
+  → 后端 Cloud 验证 proof → Plaid Link 授权银行数据
+  → 触发 CRE Workflow（传入 nullifier_hash + verification_level）
+  → CRE: token 交换 → 拉银行数据 → AI 评分（verification_level 作为输入）
+  → 链上写入 CreditOracle.updateScore(wallet, score, nullifierHash)
+  → 前端监听 ScoreUpdated 事件 → 显示分数 + 个性化抵押率 → 借贷
+```
+
+### World Mini App 双模式前端
+
+前端同时支持**浏览器模式**和 **World App 内 Mini App 模式**：
+
+| 能力 | 浏览器模式 | Mini App 模式 |
+|------|-----------|--------------|
+| World ID 验证 | `<IDKitWidget>` 弹窗/扫码 | `MiniKit.commandsAsync.verify()` 原生调用 |
+| 钱包连接 | wagmi + ConnectKit | `MiniKit.commandsAsync.walletAuth()` (SIWE) |
+| 链上交易 | wagmi 直接发 Sepolia 交易 | 不可用（sendTransaction 仅支持 World Chain） |
+| 检测方式 | 默认 | `MiniKit.isInstalled()` |
+
+**关键约束**：MiniKit 的 `sendTransaction` 仅支持 **World Chain**，而我们的 Aave fork 和 CreditOracle 部署在 **Sepolia**。因此 Mini App 模式聚焦"验证 + 评分"体验，完整借贷操作在浏览器模式完成。Mini App 作为 World App 生态的入口，引导用户完成身份验证和信用评估。
+
+**SDK 信息**：
+- 浏览器：`@worldcoin/idkit` v2.4.2（React 组件）
+- Mini App：`@worldcoin/minikit-js` v1.9.10（peer deps: react ^17-19, viem ^2.23.5）
+- Sepolia World ID Router：`0x469449f251692e0779667583026b5a1e99512157`
+- Developer Portal：https://developer.worldcoin.org（注册 app，创建 `credit-score` action）
+
+### 时间线
+
+**第二周后半**（Confidential HTTP 切换完成后）：
+1. Developer Portal 注册 app，获取 `app_id`，创建 `credit-score` action
+2. API 层增加 `POST /api/verify-world-id` 端点（Cloud 验证）
+3. CreditOracle 合约增加 nullifier 映射 + 修改 `updateScore` 签名
+4. 前端增加 World ID 验证组件（双模式：IDKit + MiniKit）
+5. CRE Workflow 传入 `nullifierHash` + `verification_level`
+6. Mini App 模式测试（ngrok 隧道 + World App 扫码）
