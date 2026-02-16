@@ -1,0 +1,70 @@
+plaid:
+  base_url: "https://sandbox.plaid.com"
+  institution_id: "ins_109508"
+  initial_products:
+    - "transactions"
+  window_days: 30
+  sandbox_personas:
+    high_credit: "user_credit_profile_excellent"
+    low_credit: "user_credit_profile_poor"
+
+score:
+  buffer_days_bands:
+    - { min: 90, score: 100 }
+    - { min: 60, score: 85 }
+    - { min: 30, score: 70 }
+    - { min: 14, score: 50 }
+    - { min: 7, score: 35 }
+    - { min: 0, score: 15 }
+  net_ratio_bands:
+    - { min: 0.25, score: 100 }
+    - { min: 0.10, score: 80 }
+    - { min: 0.00, score: 60 }
+    - { min: -0.10, score: 40 }
+    - { min: -999.0, score: 20 }
+  income_cv_bands:
+    - { max: 0.10, score: 100 }
+    - { max: 0.25, score: 80 }
+    - { max: 0.50, score: 60 }
+    - { max: 999.0, score: 40 }
+  discretionary_ratio_bands:
+    - { max: 0.25, score: 90 }
+    - { max: 0.45, score: 70 }
+    - { max: 0.65, score: 50 }
+    - { max: 999.0, score: 35 }
+
+  weights:
+    buffer: 0.30
+    net_flow: 0.25
+    income_stability: 0.20
+    spend_discipline: 0.15
+    risk_flags: 0.10
+
+  spike:
+    absolute_floor_usd: 300
+    relative_multiplier: 1.5
+    max_penalty: 20
+    per_spike_penalty: 5
+
+  risk_keywords:
+    - "overdraft"
+    - "nsf"
+    - "returned"
+    - "insufficient"
+    - "late fee"
+    - "collections"
+
+  discretionary_keywords:
+    - "food"
+    - "drink"
+    - "travel"
+    - "entertainment"
+    - "shopping"
+    - "restaurant"
+    - "coffee"
+    - "bar"
+    - "streaming"
+
+  model:
+    version: "rule-v1"
+    ai_adjustment_default: 0

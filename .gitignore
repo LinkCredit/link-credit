@@ -2,8 +2,12 @@ node_modules/
 dist/
 .env
 .env.local
+.env.*
+!.env.example
 *.log
 bun.lock
+__pycache__/
+*.pyc
 
 # Foundry
 packages/contracts/out/
