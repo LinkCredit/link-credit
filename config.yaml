@@ -8,6 +8,20 @@ plaid:
     high_credit: "user_credit_profile_excellent"
     low_credit: "user_credit_profile_poor"
 
+llm:
+  selected_provider: "openai" # options: none, deepseek, openai
+  timeout_seconds: 30
+  max_adjustment_abs: 10
+  providers:
+    deepseek:
+      model: "deepseek/deepseek-v3-turbo"
+      base_url: "https://api.ppinfra.com/v3/openai"
+      api_key_env: "PPIO_API_KEY"
+    openai:
+      model: "gpt-4.1-mini"
+      base_url: "https://api.openai.com/v1"
+      api_key_env: "OPENAI_API_KEY"
+
 score:
   buffer_days_bands:
     - { min: 90, score: 100 }

@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import json
 import math
+import os
 import re
 from dataclasses import dataclass
 from datetime import datetime
 from statistics import mean, pstdev
 from typing import Any, Dict, Iterable, List, Tuple
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 
 @dataclass
@@ -15,8 +19,27 @@ class ScoreResult:
     final_score: int
     score_bps: int
     reasons: List[str]
+    ai_reason_codes: List[str]
+    ai_explanation: str
     features: Dict[str, float]
     model_version: str
+
+
+REASON_CODE_WHITELIST = {
+    "LOW_BUFFER",
+    "HIGH_BUFFER",
+    "POSITIVE_NET_FLOW",
+    "NEGATIVE_NET_FLOW",
+    "INCOME_STABLE",
+    "INCOME_UNSTABLE",
+    "INCOME_SIGNAL_WEAK",
+    "HIGH_DISCRETIONARY_SPEND",
+    "SPEND_DISCIPLINED",
+    "SPEND_SPIKES",
+    "RISK_FLAGS_PRESENT",
+    "RISK_FLAGS_NONE",
+    "NEUTRAL_PROFILE",
+}
 
 
 def _band_score_by_min(value: float, bands: List[Dict[str, float]]) -> int:
@@ -148,6 +171,127 @@ def _spend_spike_count(spend_amounts: List[float], absolute_floor: float, multip
     return sum(1 for x in spend_amounts if x > threshold)
 
 
+def _top_merchants(spend_txs: Iterable[Dict[str, Any]], limit: int = 5) -> List[Dict[str, Any]]:
+    buckets: Dict[str, Dict[str, float]] = {}
+    for tx in spend_txs:
+        amount = float(tx.get("amount", 0.0))
+        if amount <= 0:
+            continue
+        raw = str(tx.get("merchant_name") or tx.get("name") or "UNKNOWN").strip()
+        key = raw if raw else "UNKNOWN"
+        item = buckets.setdefault(key, {"count": 0.0, "total": 0.0})
+        item["count"] += 1.0
+        item["total"] += amount
+    ranked = sorted(buckets.items(), key=lambda kv: (kv[1]["total"], kv[1]["count"]), reverse=True)
+    out: List[Dict[str, Any]] = []
+    for name, stats in ranked[:limit]:
+        out.append(
+            {
+                "name": name,
+                "count": int(stats["count"]),
+                "total": round(stats["total"], 2),
+            }
+        )
+    return out
+
+
+def _extract_json_object(text: str) -> Dict[str, Any]:
+    text = text.strip()
+    if text.startswith("{") and text.endswith("}"):
+        return json.loads(text)
+    start = text.find("{")
+    end = text.rfind("}")
+    if start >= 0 and end > start:
+        return json.loads(text[start : end + 1])
+    raise ValueError("No JSON object found in LLM response")
+
+
+def _request_ai_adjustment(summary: Dict[str, Any], config: Dict[str, Any]) -> Tuple[int, List[str], str]:
+    llm_cfg = config.get("llm", {})
+    selected_provider = str(llm_cfg.get("selected_provider", "none")).strip().lower()
+    max_adj = int(llm_cfg.get("max_adjustment_abs", 10))
+
+    if selected_provider in {"", "none"}:
+        return 0, [], "LLM calibration disabled by config."
+
+    providers = llm_cfg.get("providers", {})
+    provider_cfg = providers.get(selected_provider)
+    if not provider_cfg:
+        return 0, ["NEUTRAL_PROFILE"], f"Unknown LLM provider '{selected_provider}', fallback to 0 adjustment."
+
+    api_key = os.environ.get(str(provider_cfg.get("api_key_env", "")).strip(), "").strip()
+    if not api_key:
+        return 0, [], f"Missing API key env for provider '{selected_provider}', fallback to 0 adjustment."
+
+    base_url = str(provider_cfg.get("base_url", "")).rstrip("/")
+    model = str(provider_cfg.get("model", "")).strip()
+    if not base_url or not model:
+        return 0, ["NEUTRAL_PROFILE"], "Missing LLM base_url/model in config, fallback to 0 adjustment."
+
+    endpoint = f"{base_url}/chat/completions"
+    timeout_seconds = int(llm_cfg.get("timeout_seconds", 30))
+
+    system_prompt = (
+        "You are a credit score calibration assistant. "
+        "Given a deterministic rule score summary, return a bounded adjustment only. "
+        "Output JSON only with keys: adjustment (int), reason_codes (string array), one_sentence_explanation (string). "
+        "Rules: adjustment must be integer in [-10, 10]. "
+        "Use reason_codes from whitelist only."
+    )
+    user_prompt = json.dumps(
+        {
+            "reason_code_whitelist": sorted(REASON_CODE_WHITELIST),
+            "summary": summary,
+        },
+        ensure_ascii=True,
+    )
+
+    payload = {
+        "model": model,
+        "temperature": 0,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+    }
+    req = Request(
+        endpoint,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+        },
+        method="POST",
+    )
+
+    try:
+        with urlopen(req, timeout=timeout_seconds) as resp:
+            raw = json.loads(resp.read().decode("utf-8"))
+        content = raw["choices"][0]["message"]["content"]
+        parsed = _extract_json_object(content)
+
+        adj = int(parsed.get("adjustment", 0))
+        adj = max(-max_adj, min(max_adj, adj))
+
+        codes_raw = parsed.get("reason_codes", [])
+        codes: List[str] = []
+        if isinstance(codes_raw, list):
+            for c in codes_raw:
+                code = str(c).strip().upper()
+                if code in REASON_CODE_WHITELIST and code not in codes:
+                    codes.append(code)
+
+        explanation = str(parsed.get("one_sentence_explanation", "")).strip()
+        if not explanation:
+            explanation = "LLM calibration completed."
+        if len(explanation) > 220:
+            explanation = explanation[:220]
+
+        return adj, codes, explanation
+    except (HTTPError, URLError, TimeoutError, ValueError, KeyError, json.JSONDecodeError) as err:
+        return 0, [], f"LLM calibration failed ({err.__class__.__name__}), fallback to 0 adjustment."
+
+
 def calculate_credit_score(
     accounts: List[Dict[str, Any]],
     transactions: List[Dict[str, Any]],
@@ -215,7 +359,26 @@ def calculate_credit_score(
         + float(w["risk_flags"]) * s_risk
     )
 
-    ai_adjustment = int(scfg["model"].get("ai_adjustment_default", 0))
+    llm_summary = {
+        "window_days": 30,
+        "income_total": round(income_total, 2),
+        "spend_total": round(spend_total, 2),
+        "net": round(net, 2),
+        "balance_total": round(balance_total, 2),
+        "buffer_days": round(buffer_days, 2),
+        "income_detected": income_detected,
+        "income_cv": round(income_cv, 4) if income_detected else None,
+        "discretionary_ratio": round(discretionary_ratio, 4),
+        "spend_spike_count": spikes,
+        "risk_flags_count": risk_flags,
+        "top_merchants": _top_merchants(spend_txs),
+        "rule_score": rule_score,
+    }
+
+    ai_adjustment, ai_reason_codes, ai_explanation = _request_ai_adjustment(llm_summary, config)
+    if ai_adjustment == 0 and not ai_reason_codes:
+        ai_adjustment = int(scfg["model"].get("ai_adjustment_default", 0))
+
     final_score = max(0, min(100, rule_score + ai_adjustment))
 
     reasons: List[str] = []
@@ -233,6 +396,9 @@ def calculate_credit_score(
         reasons.append("RISK_FLAGS_PRESENT")
     if not reasons:
         reasons.append("NEUTRAL_PROFILE")
+    for code in ai_reason_codes:
+        if code not in reasons:
+            reasons.append(code)
 
     return ScoreResult(
         rule_score=rule_score,
@@ -240,6 +406,8 @@ def calculate_credit_score(
         final_score=final_score,
         score_bps=final_score * 100,
         reasons=reasons,
+        ai_reason_codes=ai_reason_codes,
+        ai_explanation=ai_explanation,
         model_version=str(scfg["model"].get("version", "rule-v1")),
         features={
             "income_total": round(income_total, 2),

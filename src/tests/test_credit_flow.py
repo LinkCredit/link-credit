@@ -39,6 +39,8 @@ def run_flow() -> Dict[str, Any]:
             "score": {
                 "rule_score": score.rule_score,
                 "ai_adjustment": score.ai_adjustment,
+                "ai_reason_codes": score.ai_reason_codes,
+                "ai_explanation": score.ai_explanation,
                 "final_score": score.final_score,
                 "score_bps": score.score_bps,
                 "reasons": score.reasons,
