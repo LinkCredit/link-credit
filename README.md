@@ -19,9 +19,10 @@ This part is already shipped as an independent, testable scoring loop under `src
    -> /item/public_token/exchange
    -> /accounts/balance/get + /transactions/get
    -> Feature extraction
-   -> Rule score (0-100)
-   -> AI agent bounded adjustment (-10 to +10)
-   -> Final score S (0-100)
+   -> Rule score S_rule (0-100)
+   -> Agent input: compressed feature summary + S_rule
+   -> Agent output: delta_ai (-10 to +10) + reason codes
+   -> Final score S = clamp(S_rule + delta_ai, 0, 100)
    -> scoreBps = S * 100
 ```
 
@@ -37,6 +38,11 @@ The scorer is deterministic-first and agent-calibrated:
 - `S_inc`: income stability
 - `S_spend`: spending discipline
 - `S_risk`: risk event penalty (e.g. overdraft/NSF keywords)
+
+Why add agent calibration:
+- Keep deterministic scoring as the anchor for reproducibility
+- Add limited human-like judgment for edge cases without letting model drift dominate
+- Return short reason codes/explanations for demo transparency
 
 Final on-chain-ready output:
 
