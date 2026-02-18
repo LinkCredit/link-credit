@@ -1,0 +1,14 @@
+{
+  "lib/aave-v3-origin": {
+    "tag": {
+      "name": "v3.6.0",
+      "rev": "5a230ec82fcb10afc7fe7cffa8978752fb17aa2b"
+    }
+  },
+  "lib/forge-std": {
+    "tag": {
+      "name": "v1.15.0",
+      "rev": "0844d7e1fc5e60d77b68e469bff60265f236c398"
+    }
+  }
+}

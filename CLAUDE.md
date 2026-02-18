@@ -46,6 +46,9 @@ L1: Solidity Contracts (Sepolia) — CreditOracle.sol + Fork Aave v3 (modified G
 # Install all workspace dependencies
 bun install
 
+# Sync git submodules (required for contracts libs like aave-v3-origin/forge-std)
+git submodule update --init --recursive
+
 # Run dev servers
 bun run dev:frontend   # React DApp
 

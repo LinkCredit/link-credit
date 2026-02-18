@@ -4,6 +4,6 @@
   "version": "0.0.1",
   "scripts": {
     "build": "forge build",
-    "test": "forge test"
+    "test": "forge test --ffi"
   }
 }
