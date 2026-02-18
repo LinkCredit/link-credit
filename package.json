@@ -5,6 +5,7 @@
   "scripts": {
     "build": "bun run --filter '*' build",
     "dev:api": "bun run --filter @link-credit/api dev",
+    "dev:local": "bash scripts/dev-local.sh",
     "dev:frontend": "bun run --filter @link-credit/frontend dev",
     "test": "bun run --filter '*' test"
   },
