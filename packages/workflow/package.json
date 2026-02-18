@@ -3,8 +3,9 @@
   "private": true,
   "version": "0.0.1",
   "scripts": {
-    "build": "bun run build:workflow",
-    "build:workflow": "echo 'TODO: CRE workflow build'",
+    "build": "cre workflow simulate .",
+    "simulate": "cre workflow simulate .",
+    "deploy": "cre workflow deploy . --target sepolia",
     "test": "bun test"
   },
   "dependencies": {

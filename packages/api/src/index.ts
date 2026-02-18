@@ -136,9 +136,9 @@ async function createLinkTokenHandler(c: Context<{ Bindings: EnvBindings }>) {
 
 app.post("/api/plaid/create-link-token", createLinkTokenHandler);
 
-app.post("/link-token", async (c) => {
-  return createLinkTokenHandler(c);
-});
+app.post("/link-token", createLinkTokenHandler);
+
+app.post("/plaid/link-token", createLinkTokenHandler);
 
 app.post("/trigger-scoring", async (c) => {
   const body = await parseBody(c);
@@ -301,16 +301,11 @@ async function verifyWalletSignature(
   ];
 
   for (const message of candidates) {
-    let verified = false;
-    try {
-      verified = await verifyMessage({
-        address: normalizedWallet,
-        message,
-        signature: payload.signature as `0x${string}`,
-      });
-    } catch {
-      verified = false;
-    }
+    const verified = await verifyMessage({
+      address: normalizedWallet,
+      message,
+      signature: payload.signature as `0x${string}`,
+    }).catch(() => false);
 
     if (verified) {
       return true;
@@ -507,21 +502,16 @@ async function nextUserRecord(kv: KVStore): Promise<AccessTokenRecord | null> {
     return null;
   }
 
-  const rotatedQueue = [...queue];
-  for (let index = 0; index < queue.length; index += 1) {
-    const nextWallet = rotatedQueue.shift();
-    if (!nextWallet) {
-      break;
-    }
+  for (let i = 0; i < queue.length; i++) {
+    const wallet = queue[i];
+    const recordRaw = await kv.get(tokenKey(wallet));
+    const record = recordRaw ? parseAccessTokenRecord(recordRaw) : null;
 
-    const recordRaw = await kv.get(tokenKey(nextWallet));
-    if (recordRaw) {
-      const record = parseAccessTokenRecord(recordRaw);
-      if (record) {
-        rotatedQueue.push(nextWallet);
-        await writeQueue(kv, rotatedQueue);
-        return record;
-      }
+    if (record) {
+      // Rotate: move processed entries to the back
+      const rotated = [...queue.slice(i + 1), ...queue.slice(0, i + 1)];
+      await writeQueue(kv, rotated);
+      return record;
     }
   }
 

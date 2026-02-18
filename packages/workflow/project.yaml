@@ -1,0 +1,7 @@
+schemaVersion: 1
+name: link-credit
+targets:
+  sepolia:
+    chainRpc:
+      ethereum-testnet-sepolia: "${SEPOLIA_RPC_URL}"
+    ownerAddress: "${DEPLOYER_ADDRESS}"

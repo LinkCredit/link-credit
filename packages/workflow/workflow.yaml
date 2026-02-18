@@ -1,0 +1,10 @@
+schemaVersion: 1
+name: link-credit-scoring
+config:
+  chainSelectorName: "ethereum-testnet-sepolia"
+  oracleContractAddress: "${CREDIT_ORACLE_ADDRESS}"
+  workerBaseUrl: "${WORKER_BASE_URL}"
+  plaidBaseUrl: "https://sandbox.plaid.com"
+  openAiBaseUrl: "https://api.openai.com/v1"
+  openAiModel: "gpt-4o-mini"
+  transactionsLookbackDays: 30

@@ -4,10 +4,11 @@ import { type Address } from "viem";
 import { apiBaseUrl } from "../config/addresses";
 
 type PlaidEvaluateResponse = {
-  scoreBps?: number;
-  score?: number;
+  accepted: boolean;
   message?: string;
 };
+
+type SignMessageAsync = (variables: { message: string }) => Promise<string>;
 
 function formatError(error: unknown): string {
   if (error instanceof Error) {
@@ -16,8 +17,20 @@ function formatError(error: unknown): string {
   return "Plaid operation failed.";
 }
 
+function createWalletOwnershipMessage(
+  publicToken: string,
+  walletAddress: Address,
+): string {
+  return [
+    "Link Credit scoring authorization",
+    `publicToken:${publicToken}`,
+    `walletAddress:${walletAddress}`,
+  ].join("\n");
+}
+
 export function usePlaidLink(
   walletAddress?: Address,
+  signMessageAsync?: SignMessageAsync,
   onEvaluated?: () => void,
 ) {
   const [linkToken, setLinkToken] = useState<string | null>(null);
@@ -43,12 +56,20 @@ export function usePlaidLink(
       setError(null);
 
       try {
-        const response = await fetch(`${apiBaseUrl}/plaid/evaluate`, {
+        if (!signMessageAsync) {
+          throw new Error("Connect wallet first.");
+        }
+
+        const message = createWalletOwnershipMessage(publicToken, walletAddress);
+        const signature = await signMessageAsync({ message });
+
+        const response = await fetch(`${apiBaseUrl}/trigger-scoring`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             publicToken,
             walletAddress,
+            signature,
           }),
         });
 
@@ -58,6 +79,9 @@ export function usePlaidLink(
         }
 
         const payload = (await response.json()) as PlaidEvaluateResponse;
+        if (!payload.accepted) {
+          throw new Error(payload.message || "Scoring request was not accepted.");
+        }
         setLastEvaluation(payload);
         onEvaluated?.();
       } catch (evaluationError) {
@@ -66,7 +90,7 @@ export function usePlaidLink(
         setIsEvaluating(false);
       }
     },
-    [walletAddress, onEvaluated]
+    [walletAddress, signMessageAsync, onEvaluated]
   );
 
   const { open, ready } = usePlaidWidget({

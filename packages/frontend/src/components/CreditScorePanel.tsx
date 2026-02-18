@@ -1,4 +1,5 @@
-import { useAccount } from "wagmi";
+import { useEffect, useState } from "react";
+import { useAccount, useSignMessage } from "wagmi";
 import { isDeployed } from "../config/addresses";
 import { useCreditScore } from "../hooks/useCreditScore";
 import { usePlaidLink } from "../hooks/usePlaidLink";
@@ -9,8 +10,16 @@ function formatPercent(value: number): string {
   return `${value.toFixed(2)}%`;
 }
 
+function buttonLabel(isAwaitingOnchain: boolean, isBusy: boolean): string {
+  if (isAwaitingOnchain) return "Waiting on-chain...";
+  if (isBusy) return "Evaluating...";
+  return "Evaluate My Credit";
+}
+
 export function CreditScorePanel(): React.JSX.Element {
   const { address, isConnected } = useAccount();
+  const { signMessageAsync } = useSignMessage();
+  const [pendingScoreBps, setPendingScoreBps] = useState<bigint | null>(null);
   const {
     score,
     scoreBps,
@@ -18,15 +27,29 @@ export function CreditScorePanel(): React.JSX.Element {
     hasScore,
     isLoading,
     isFetching,
-    refetch,
   } = useCreditScore(address);
-  const plaid = usePlaidLink(address, () => {
-    void refetch();
+  const plaid = usePlaidLink(address, signMessageAsync, () => {
+    setPendingScoreBps(scoreBps);
   });
+
+  useEffect(() => {
+    if (pendingScoreBps === null) {
+      return;
+    }
+    if (scoreBps !== pendingScoreBps) {
+      setPendingScoreBps(null);
+    }
+  }, [pendingScoreBps, scoreBps]);
+
+  useEffect(() => {
+    setPendingScoreBps(null);
+  }, [address]);
 
   const boostedLtv = BASE_LTV_PERCENT + ltvBoostPercent;
   const scoreProgress = Math.max(0, Math.min(score, 100));
-  const isBusy = plaid.isPreparing || plaid.isEvaluating;
+  const isAwaitingOnchainConfirmation = pendingScoreBps !== null;
+  const isBusy =
+    plaid.isPreparing || plaid.isEvaluating || isAwaitingOnchainConfirmation;
   const evaluateDisabled = !isConnected || isBusy;
 
   return (
@@ -44,7 +67,7 @@ export function CreditScorePanel(): React.JSX.Element {
           disabled={evaluateDisabled}
           className="rounded-xl bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {isBusy ? "Evaluating..." : "Evaluate My Credit"}
+          {buttonLabel(isAwaitingOnchainConfirmation, isBusy)}
         </button>
       </div>
 
@@ -87,7 +110,13 @@ export function CreditScorePanel(): React.JSX.Element {
         </div>
       </div>
 
-      {!hasScore && (
+      {isAwaitingOnchainConfirmation && (
+        <p className="mt-4 text-sm text-cyan-200">
+          Evaluation submitted, waiting for on-chain confirmation.
+        </p>
+      )}
+
+      {!hasScore && !isAwaitingOnchainConfirmation && (
         <p className="mt-4 text-sm text-amber-200">
           No credit score yet. Run Plaid evaluation or call
           <span className="mx-1 rounded bg-black/40 px-1.5 py-0.5 font-mono text-xs">
@@ -100,12 +129,6 @@ export function CreditScorePanel(): React.JSX.Element {
       {!isDeployed && (
         <p className="mt-4 text-sm text-amber-200">
           Demo mode: contracts are not configured in env vars.
-        </p>
-      )}
-
-      {plaid.lastEvaluation?.message && (
-        <p className="mt-4 text-sm text-emerald-200">
-          Latest evaluation: {plaid.lastEvaluation.message}
         </p>
       )}
 
