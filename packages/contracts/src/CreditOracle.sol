@@ -11,20 +11,20 @@ contract CreditOracle is Ownable, ICreditOracle {
   address public creWorkflow;
 
   error UnauthorizedUpdater(address sender);
-  error InvalidScore(uint256 score);
+  error InvalidScore(uint256 scoreBps);
 
   constructor(address owner_) Ownable(owner_) {}
 
-  function updateScore(address user, uint256 score) external {
+  function updateScore(address user, uint256 scoreBps) external {
     if (msg.sender != creWorkflow && msg.sender != owner()) {
       revert UnauthorizedUpdater(msg.sender);
     }
-    if (score > 10_000) {
-      revert InvalidScore(score);
+    if (scoreBps > 10_000) {
+      revert InvalidScore(scoreBps);
     }
 
-    creditScores[user] = score;
-    emit ScoreUpdated(user, score, getLtvBoost(user));
+    creditScores[user] = scoreBps;
+    emit ScoreUpdated(user, scoreBps, getLtvBoost(user));
   }
 
   function getLtvBoost(address user) public view returns (uint256) {

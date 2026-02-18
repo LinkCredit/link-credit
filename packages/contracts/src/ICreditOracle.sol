@@ -6,10 +6,10 @@ interface ICreditOracle {
 
   function getLtvBoost(address user) external view returns (uint256);
 
-  function updateScore(address user, uint256 score) external;
+  function updateScore(address user, uint256 scoreBps) external;
 
   function setCreWorkflow(address workflow) external;
 
-  event ScoreUpdated(address indexed user, uint256 score, uint256 boost);
+  event ScoreUpdated(address indexed user, uint256 scoreBps, uint256 boost);
   event CreWorkflowUpdated(address indexed workflow);
 }
