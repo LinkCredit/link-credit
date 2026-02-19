@@ -12,7 +12,10 @@ bun test             # Run tests
 
 ## Source Files
 
-- `src/index.ts` — All endpoints, auth helpers, and KV logic (single-file API)
+- `src/index.ts` — Route registration + app bootstrap
+- `src/routes.ts` — Endpoint handlers
+- `src/auth.ts` — Signature + API key + JWT helpers
+- `src/store.ts` — KV queue/token storage helpers
 - `src/index.test.ts` — Tests (minimal coverage)
 
 ## API Endpoints
@@ -20,7 +23,7 @@ bun test             # Run tests
 | Method | Path | Auth | Purpose |
 |--------|------|------|---------|
 | GET | `/health` | None | Status + queue size |
-| POST | `/link-token` | None | Create Plaid Link token |
+| POST | `/plaid/link-token` | None | Create Plaid Link token |
 | POST | `/trigger-scoring` | Wallet signature (EIP-191) | Trigger CRE workflow |
 | PUT | `/access-token` | API key | Store encrypted Plaid token in KV |
 | GET | `/next-user` | API key | Pop next user from rescore queue |
@@ -43,6 +46,7 @@ bun test             # Run tests
 | `CRE_WORKER_PRIVATE_KEY` | Yes | — |
 | `WORKER_API_KEY` | Yes | — |
 | `ACCESS_TOKEN_KV` | Yes | KV namespace binding |
+| `ALLOW_IN_MEMORY_KV_FALLBACK` | Local only | `false` |
 
 ## Dependencies
 

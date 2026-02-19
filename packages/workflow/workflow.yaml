@@ -5,6 +5,6 @@ config:
   oracleContractAddress: "${CREDIT_ORACLE_ADDRESS}"
   workerBaseUrl: "${WORKER_BASE_URL}"
   plaidBaseUrl: "https://sandbox.plaid.com"
-  openAiBaseUrl: "https://api.openai.com/v1"
-  openAiModel: "gpt-4o-mini"
+  openAiBaseUrl: "${OPENAI_BASE_URL}"
+  openAiModel: "${OPENAI_MODEL}"
   transactionsLookbackDays: 30

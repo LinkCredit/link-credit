@@ -34,5 +34,5 @@ Scaffold only. Planned features:
 
 ## API Endpoints Consumed
 
-- `POST /link-token` — Get Plaid Link token
+- `POST /plaid/link-token` — Get Plaid Link token
 - `POST /trigger-scoring` — Trigger credit scoring (requires wallet signature)

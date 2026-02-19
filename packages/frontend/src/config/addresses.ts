@@ -1,4 +1,5 @@
 import { type Address, getAddress, isAddress } from "viem";
+import deployed from "../../../contracts/deployed-addresses.json";
 
 export const ZERO_ADDRESS =
   "0x0000000000000000000000000000000000000000" as Address;
@@ -11,11 +12,11 @@ function parseAddress(value: string | undefined): Address {
 }
 
 export const addresses = {
-  creditOracle: parseAddress(import.meta.env.VITE_CREDIT_ORACLE_ADDRESS),
-  pool: parseAddress(import.meta.env.VITE_POOL_ADDRESS),
-  weth: parseAddress(import.meta.env.VITE_WETH_ADDRESS),
-  usdx: parseAddress(import.meta.env.VITE_USDX_ADDRESS),
-  wbtc: parseAddress(import.meta.env.VITE_WBTC_ADDRESS),
+  creditOracle: parseAddress(import.meta.env.VITE_CREDIT_ORACLE_ADDRESS || deployed.creditOracle),
+  pool: parseAddress(import.meta.env.VITE_POOL_ADDRESS || deployed.poolProxy),
+  weth: parseAddress(import.meta.env.VITE_WETH_ADDRESS || deployed.weth),
+  usdx: parseAddress(import.meta.env.VITE_USDX_ADDRESS || deployed.usdx),
+  wbtc: parseAddress(import.meta.env.VITE_WBTC_ADDRESS || deployed.wbtc),
 } as const;
 
 export const chainId = Number(import.meta.env.VITE_CHAIN_ID || "11155111");

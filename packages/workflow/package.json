@@ -3,8 +3,8 @@
   "private": true,
   "version": "0.0.1",
   "scripts": {
-    "build": "cre workflow simulate .",
-    "simulate": "cre workflow simulate .",
+    "build": "bunx tsc --noEmit",
+    "simulate": "bun run build",
     "deploy": "cre workflow deploy . --target sepolia",
     "test": "bun test"
   },

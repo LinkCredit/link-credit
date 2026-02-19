@@ -6,7 +6,7 @@
 
 ## Endpoint（仅 1 个）
 
-### `POST /api/plaid/create-link-token`
+### `POST /plaid/link-token`
 
 - 接收: `{ userId: string }` (用户钱包地址)
 - 调用 Plaid `/link/token/create`

@@ -56,7 +56,7 @@
 前端集成 Plaid Link，授权完成后触发 CRE Workflow，结果通过链上事件返回：
 
 1. 用户点击 "Evaluate My Credit"
-2. 前端调 Serverless `POST /api/plaid/create-link-token` → 拿到 `link_token`
+2. 前端调 Serverless `POST /plaid/link-token` → 拿到 `link_token`
 3. 用 `link_token` 初始化 Plaid Link UI（`react-plaid-link` 组件）
 4. 用户在 Plaid Link 中选择银行、输入测试凭证（`user_good`/`pass_good`）
 5. Plaid Link 返回 `public_token`

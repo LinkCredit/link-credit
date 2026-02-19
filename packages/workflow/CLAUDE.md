@@ -6,7 +6,8 @@ CRE credit scoring workflow. Fetches bank data via Plaid, computes a rule-based 
 
 ```bash
 bun test             # Run tests (encryption + scoring)
-bun run build        # TODO — WASM build not implemented yet
+bun run build        # Type-check workflow sources
+bun run simulate     # Alias for build (simulation wiring not yet integrated)
 ```
 
 ## Source Files

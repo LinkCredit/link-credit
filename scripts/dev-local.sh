@@ -2,6 +2,11 @@
 set -euo pipefail
 
 cleanup() {
+  if [[ -n "${API_PID:-}" ]] && kill -0 "$API_PID" 2>/dev/null; then
+    echo "Stopping API server (pid: $API_PID)"
+    kill "$API_PID"
+  fi
+
   if [[ -n "${ANVIL_PID:-}" ]] && kill -0 "$ANVIL_PID" 2>/dev/null; then
     echo "Stopping Anvil (pid: $ANVIL_PID)"
     kill "$ANVIL_PID"
@@ -22,7 +27,7 @@ echo "Deploying contracts to local Anvil..."
 )
 
 echo "Generating packages/frontend/.env.local from deployed addresses..."
-node -e "
+bun -e "
   const fs = require('fs');
   const raw = require('./packages/contracts/out/deployed-addresses.json');
   const addrs = raw.deployment ?? raw;
@@ -41,6 +46,23 @@ node -e "
   console.log('Frontend .env.local generated:\\n');
   console.log(env);
 "
+
+echo "Starting API dev server on http://localhost:3001..."
+bun run dev:api > /tmp/link-credit-api.log 2>&1 &
+API_PID=$!
+
+echo "Waiting for API server..."
+for i in {1..30}; do
+  if curl -sS http://localhost:3001/ > /dev/null 2>&1; then
+    break
+  fi
+  if [[ "$i" -eq 30 ]]; then
+    echo "API server did not start in time. Last API logs:"
+    tail -n 50 /tmp/link-credit-api.log || true
+    exit 1
+  fi
+  sleep 1
+done
 
 echo "Starting frontend dev server..."
 bun run dev:frontend

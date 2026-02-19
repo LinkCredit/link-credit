@@ -30,7 +30,7 @@ contract DeployCreditMarket is Script, DefaultMarketInput, FfiUtils {
     address deployer = vm.envOr('DEPLOYER_ADDRESS', msg.sender);
     (roles, config, flags, report) = _getMarketInput(deployer);
 
-    vm.startBroadcast();
+    vm.startBroadcast(deployer);
 
     address weth = address(new WETH9());
     config.wrappedNativeToken = weth;
