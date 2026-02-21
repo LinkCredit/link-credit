@@ -13,7 +13,7 @@ This guide connects all three parts of the stack for end-to-end testing:
 - CRE CLI installed (`cre --version`)
 - Sepolia RPC endpoint
 - Plaid sandbox keys
-- OpenAI API key
+- OpenAI API key (or Anthropic API key if using Claude)
 - A funded Sepolia deployer wallet
 
 Install CRE CLI on macOS:
@@ -27,7 +27,7 @@ brew install chainlink/tap/cre
 1. Copy `.env.example` to `.env` at the repo root.
 2. Fill all required values:
    - `SEPOLIA_RPC_URL`, `DEPLOYER_PRIVATE_KEY`, `DEPLOYER_ADDRESS`
-   - `PLAID_CLIENT_ID`, `PLAID_SECRET`, `OPENAI_API_KEY`
+   - `PLAID_CLIENT_ID`, `PLAID_SECRET`, `OPENAI_API_KEY` (or `ANTHROPIC_API_KEY` for Claude)
    - `WORKER_API_KEY`, `TOKEN_ENCRYPTION_KEY`, `CRE_WORKER_PRIVATE_KEY`
 
 Workflow config files already reference env vars:

@@ -206,6 +206,83 @@ def _extract_json_object(text: str) -> Dict[str, Any]:
     raise ValueError("No JSON object found in LLM response")
 
 
+def _request_via_openai_compatible(
+    base_url: str,
+    model: str,
+    api_key: str,
+    timeout_seconds: int,
+    system_prompt: str,
+    user_prompt: str,
+) -> str:
+    endpoint = f"{base_url}/chat/completions"
+    payload = {
+        "model": model,
+        "temperature": 0,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+    }
+    req = Request(
+        endpoint,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+        },
+        method="POST",
+    )
+    with urlopen(req, timeout=timeout_seconds) as resp:
+        raw = json.loads(resp.read().decode("utf-8"))
+    return str(raw["choices"][0]["message"]["content"])
+
+
+def _request_via_anthropic(
+    base_url: str,
+    model: str,
+    api_key: str,
+    timeout_seconds: int,
+    system_prompt: str,
+    user_prompt: str,
+) -> str:
+    endpoint = f"{base_url}/v1/messages"
+    payload = {
+        "model": model,
+        "max_tokens": 300,
+        "temperature": 0,
+        "system": system_prompt,
+        "messages": [
+            {
+                "role": "user",
+                "content": [{"type": "text", "text": user_prompt}],
+            }
+        ],
+    }
+    req = Request(
+        endpoint,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+        },
+        method="POST",
+    )
+    with urlopen(req, timeout=timeout_seconds) as resp:
+        raw = json.loads(resp.read().decode("utf-8"))
+    content_blocks = raw.get("content", [])
+    if not isinstance(content_blocks, list):
+        raise KeyError("Anthropic content blocks missing")
+    text_parts: List[str] = []
+    for block in content_blocks:
+        if isinstance(block, dict) and block.get("type") == "text":
+            text_parts.append(str(block.get("text", "")))
+    content = "".join(text_parts).strip()
+    if not content:
+        raise KeyError("Anthropic text content missing")
+    return content
+
+
 def _request_ai_adjustment(summary: Dict[str, Any], config: Dict[str, Any]) -> Tuple[int, List[str], str]:
     llm_cfg = config.get("llm", {})
     selected_provider = str(llm_cfg.get("selected_provider", "none")).strip().lower()
@@ -228,8 +305,8 @@ def _request_ai_adjustment(summary: Dict[str, Any], config: Dict[str, Any]) -> T
     if not base_url or not model:
         return 0, ["NEUTRAL_PROFILE"], "Missing LLM base_url/model in config, fallback to 0 adjustment."
 
-    endpoint = f"{base_url}/chat/completions"
     timeout_seconds = int(llm_cfg.get("timeout_seconds", 30))
+    api_type = str(provider_cfg.get("api_type", "openai")).strip().lower()
 
     system_prompt = (
         "You are a credit score calibration assistant. "
@@ -246,28 +323,25 @@ def _request_ai_adjustment(summary: Dict[str, Any], config: Dict[str, Any]) -> T
         ensure_ascii=True,
     )
 
-    payload = {
-        "model": model,
-        "temperature": 0,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-    }
-    req = Request(
-        endpoint,
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {api_key}",
-        },
-        method="POST",
-    )
-
     try:
-        with urlopen(req, timeout=timeout_seconds) as resp:
-            raw = json.loads(resp.read().decode("utf-8"))
-        content = raw["choices"][0]["message"]["content"]
+        if api_type == "anthropic":
+            content = _request_via_anthropic(
+                base_url=base_url,
+                model=model,
+                api_key=api_key,
+                timeout_seconds=timeout_seconds,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+            )
+        else:
+            content = _request_via_openai_compatible(
+                base_url=base_url,
+                model=model,
+                api_key=api_key,
+                timeout_seconds=timeout_seconds,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+            )
         parsed = _extract_json_object(content)
 
         adj = int(parsed.get("adjustment", 0))
@@ -288,7 +362,16 @@ def _request_ai_adjustment(summary: Dict[str, Any], config: Dict[str, Any]) -> T
             explanation = explanation[:220]
 
         return adj, codes, explanation
-    except (HTTPError, URLError, TimeoutError, ValueError, KeyError, json.JSONDecodeError) as err:
+    except HTTPError as err:
+        detail = err.read().decode("utf-8", errors="ignore").strip()
+        if len(detail) > 240:
+            detail = f"{detail[:240]}..."
+        message = (
+            f"LLM calibration failed (HTTP {err.code}) provider='{selected_provider}' model='{model}'"
+            + (f": {detail}" if detail else "")
+        )
+        return 0, [], message
+    except (URLError, TimeoutError, ValueError, KeyError, json.JSONDecodeError) as err:
         return 0, [], f"LLM calibration failed ({err.__class__.__name__}), fallback to 0 adjustment."
 
 
