@@ -54,7 +54,7 @@ export function base64UrlEncodeJson(value: unknown): string {
   return base64UrlEncodeText(JSON.stringify(value));
 }
 
-export function base64UrlEncodeText(input: string): string {
+function base64UrlEncodeText(input: string): string {
   return base64UrlEncodeBytes(new TextEncoder().encode(input));
 }
 

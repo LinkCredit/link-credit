@@ -20,7 +20,6 @@ import {
   parseAbiParameters,
   stringToHex,
   type Address,
-  zeroAddress,
 } from "viem";
 import { z } from "zod";
 
@@ -368,17 +367,7 @@ function callOpenAI(
     };
   }
 
-  const rawBody = decodeBody(response);
-  const parsed = safeJsonParse(rawBody);
-  if (!parsed || typeof parsed !== "object") {
-    return {
-      adjustment: 0,
-      reasonCodes: ["AI_UNAVAILABLE"],
-      explanation: "AI output invalid",
-    };
-  }
-
-  return parseAiResponse(JSON.stringify(parsed));
+  return parseAiResponse(decodeBody(response));
 }
 
 function storeTokenCRE(
@@ -479,7 +468,7 @@ function writeScoreOnChain(
     .result();
 
   runtime.log(
-    `[workflow] wrote on-chain score wallet=${walletAddress} scoreBps=${scoreBps} from=${zeroAddress}`,
+    `[workflow] wrote on-chain score wallet=${walletAddress} scoreBps=${scoreBps}`,
   );
 }
 

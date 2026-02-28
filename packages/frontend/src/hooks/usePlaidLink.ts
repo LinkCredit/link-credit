@@ -3,11 +3,6 @@ import { usePlaidLink as usePlaidWidget } from "react-plaid-link";
 import { type Address } from "viem";
 import { apiBaseUrl } from "../config/addresses";
 
-type PlaidEvaluateResponse = {
-  accepted: boolean;
-  message?: string;
-};
-
 type SignMessageAsync = (variables: { message: string }) => Promise<string>;
 
 function getOAuthRedirectUri(): string | null {
@@ -70,15 +65,12 @@ export function usePlaidLink(
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [hasAttemptedOAuthResume, setHasAttemptedOAuthResume] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [lastEvaluation, setLastEvaluation] =
-    useState<PlaidEvaluateResponse | null>(null);
   const [receivedRedirectUri, setReceivedRedirectUri] = useState<string | null>(
     null,
   );
 
   useEffect(() => {
     setLinkToken(null);
-    setLastEvaluation(null);
 
     const redirectUri = getOAuthRedirectUri();
     setReceivedRedirectUri(redirectUri);
@@ -102,8 +94,6 @@ export function usePlaidLink(
         const message = createWalletOwnershipMessage(publicToken, walletAddress);
         const signature = await signMessageAsync({ message });
 
-        console.log("[trigger-scoring] payload:", JSON.stringify({ publicToken, walletAddress, signature }, null, 2));
-
         const response = await fetch(`${apiBaseUrl}/trigger-scoring`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -119,11 +109,10 @@ export function usePlaidLink(
           throw new Error(text || "Credit evaluation request failed.");
         }
 
-        const payload = (await response.json()) as PlaidEvaluateResponse;
+        const payload = (await response.json()) as { accepted?: boolean; message?: string };
         if (!payload.accepted) {
           throw new Error(payload.message || "Scoring request was not accepted.");
         }
-        setLastEvaluation(payload);
         onEvaluated?.();
       } catch (evaluationError) {
         setError(formatError(evaluationError));
@@ -241,6 +230,5 @@ export function usePlaidLink(
     isEvaluating,
     ready,
     error,
-    lastEvaluation,
   };
 }

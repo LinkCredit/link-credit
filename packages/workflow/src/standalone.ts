@@ -351,20 +351,16 @@ async function fetchNextQueueItem(
     throw new Error("Worker /next-user returned invalid JSON");
   }
 
-  const walletAddress = (parsed as { walletAddress?: unknown }).walletAddress;
-  const encryptedToken = (parsed as { encryptedToken?: unknown }).encryptedToken;
-  const updatedAt = (parsed as { updatedAt?: unknown }).updatedAt;
-  const lastScore = (parsed as { lastScore?: unknown }).lastScore;
-
-  if (typeof walletAddress !== "string" || typeof encryptedToken !== "string") {
+  const data = parsed as Record<string, unknown>;
+  if (typeof data.walletAddress !== "string" || typeof data.encryptedToken !== "string") {
     throw new Error("Worker /next-user response missing walletAddress or encryptedToken");
   }
 
   return {
-    walletAddress,
-    encryptedToken,
-    updatedAt: typeof updatedAt === "string" ? updatedAt : undefined,
-    lastScore: typeof lastScore === "number" ? lastScore : undefined,
+    walletAddress: data.walletAddress,
+    encryptedToken: data.encryptedToken,
+    updatedAt: typeof data.updatedAt === "string" ? data.updatedAt : undefined,
+    lastScore: typeof data.lastScore === "number" ? data.lastScore : undefined,
   };
 }
 
