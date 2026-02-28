@@ -1,164 +1,158 @@
 # Link Credit Integration Runbook
 
-This guide connects all three parts of the stack for end-to-end testing:
+End-to-end guide for running the full stack on Sepolia testnet.
 
 - Smart contracts (`packages/contracts`)
 - CRE workflow (`packages/workflow`)
 - API + frontend (`packages/api`, `packages/frontend`)
 
+---
+
 ## 1) Prerequisites Checklist
 
 - Bun installed (`bun --version`)
-- Foundry installed (`forge --version`, `cast --version`)
 - CRE CLI installed (`cre --version`)
-- Sepolia RPC endpoint
 - Plaid sandbox keys
-- OpenAI API key (or Anthropic API key if using Claude)
-- A funded Sepolia deployer wallet
+- OpenAI API key
 
-Install CRE CLI on macOS:
+Install CRE CLI:
 
 ```bash
-brew install chainlink/tap/cre
+curl -sSL https://cre.chain.link/install.sh | bash
 ```
 
 ## 2) Prepare Environment Variables
 
-1. Copy `.env.example` to `.env` at the repo root.
-2. Fill all required values:
-   - `SEPOLIA_RPC_URL`, `DEPLOYER_PRIVATE_KEY`, `DEPLOYER_ADDRESS`
-   - `PLAID_CLIENT_ID`, `PLAID_SECRET`, `OPENAI_API_KEY` (or `ANTHROPIC_API_KEY` for Claude)
-   - `WORKER_API_KEY`, `TOKEN_ENCRYPTION_KEY`, `CRE_WORKER_PRIVATE_KEY`
+Each package manages its own environment variables via per-package `.env` files (auto-loaded by the respective runtime).
 
-Workflow config files already reference env vars:
+### For API dev server (`packages/api/.env`) — **REQUIRED**
 
-- `packages/workflow/project.yaml`
-- `packages/workflow/workflow.yaml`
-- `packages/workflow/secrets.yaml`
+Copy `packages/api/.env.example` to `packages/api/.env` and fill in:
 
-## 3) Deploy Contracts to Sepolia
+| Variable | Source | Notes |
+|---|---|---|
+| `PLAID_CLIENT_ID` | [Plaid Dashboard](https://dashboard.plaid.com) | Sandbox key |
+| `PLAID_SECRET` | Plaid Dashboard | Sandbox key |
+| `WORKER_API_KEY` | Any string | For internal API auth (e.g., `dev-api-key-change-me`) |
+| `TOKEN_ENCRYPTION_KEY` | Generate | 64-char hex string: `openssl rand -hex 32` |
+
+### For CRE workflow (`packages/workflow/.env`) — REQUIRED for manual trigger
+
+Copy `packages/workflow/.env.example` to `packages/workflow/.env` and fill in:
+
+| Variable | Source | Notes |
+|---|---|---|
+| `PLAID_CLIENT_ID` | Plaid Dashboard | Same as API |
+| `PLAID_SECRET` | Plaid Dashboard | Same as API |
+| `OPENAI_API_KEY` | OpenAI API keys | Required for scoring |
+| `WORKER_API_KEY` | Same as API | Must match |
+| `TOKEN_ENCRYPTION_KEY` | Generate | Same as API: `openssl rand -hex 32` |
+| `WORKER_BASE_URL` | — | Defaults to `http://localhost:3001` |
+
+### For Frontend (`packages/frontend/.env`) — OPTIONAL
+
+Copy `packages/frontend/.env.example` to `packages/frontend/.env` if you need custom values. Otherwise sensible defaults are used:
+- `VITE_API_BASE_URL` — defaults to `http://localhost:3001`
+- `VITE_WALLETCONNECT_PROJECT_ID` — defaults to `demo`
+
+### Note on Config vs Env Vars
+
+Workflow config files (referenced in `packages/workflow/project.yaml`, `workflow.yaml`) use separate JSON config files (`config.staging.json`, `config.production.json`) for non-secret parameters like:
+- `chainSelectorName`, `oracleContractAddress` — read from `deployed-addresses.json` via `sync:addresses`
+- `plaidBaseUrl`, `openAiBaseUrl`, `openAiModel` — baked into the WASM artifact
+
+These are NOT environment variables and should not be manually edited unless you're deploying to a real CRE environment.
+
+## 3) End-to-End Validation Flow
+
+Here's the high-level workflow from start to finish:
+
+1. `bun run dev:local` — start API + frontend (see Section 4).
+2. Open the frontend and connect your Sepolia wallet.
+3. Click `Evaluate My Credit`.
+4. Complete the Plaid Link sandbox auth.
+5. Confirm the wallet signature.
+6. Copy the payload JSON from browser console → save to `packages/workflow/payload.json`.
+7. Run `cre workflow simulate` with `--broadcast` to compute the score and write it on-chain (see Section 5).
+8. Workflow completes and writes the credit score to `CreditOracle` on Sepolia.
+9. Frontend refreshes and displays the updated score/LTV.
+
+Each detailed step is covered in the sections below.
+
+## 4) Start Dev Servers
+
+One command (recommended):
 
 ```bash
-cd packages/contracts
-forge script script/DeployCreditMarket.s.sol \
-  --rpc-url "$SEPOLIA_RPC_URL" \
-  --private-key "$DEPLOYER_PRIVATE_KEY" \
-  --broadcast
+bun run dev:local
 ```
 
-Expected output:
-
-- Successful broadcast logs from Foundry
-- `packages/contracts/out/deployed-addresses.json` created
-
-After deployment:
-
-1. Read addresses from `packages/contracts/out/deployed-addresses.json`
-2. Update `.env`:
-   - `CREDIT_ORACLE_ADDRESS`
-   - all `VITE_*` frontend addresses
-
-## 4) Simulate and Deploy CRE Workflow
-
-Run local simulation first:
+Or start individually:
 
 ```bash
-cd packages/workflow
-cre workflow simulate .
-```
-
-Expected output:
-
-- Workflow compile + simulation success
-- No config/secret resolution errors
-
-If simulation is good, deploy:
-
-```bash
-cre workflow deploy . --target sepolia
-```
-
-Expected output:
-
-- Deployment accepted by CRE
-- Returned `workflowId`
-
-Then:
-
-1. Set `.env` `CRE_WORKFLOW_ID` to the returned workflow ID.
-2. Upload secrets:
-
-```bash
-cre secrets create secrets.yaml
-```
-
-3. Set workflow address on `CreditOracle`:
-
-```bash
-cast send "$CREDIT_ORACLE_ADDRESS" "setCreWorkflow(address)" "$WORKFLOW_ADDRESS" \
-  --rpc-url "$SEPOLIA_RPC_URL" \
-  --private-key "$DEPLOYER_PRIVATE_KEY"
-```
-
-## 5) Start API
-
-```bash
-cd packages/api
-bun run dev
-```
-
-Expected output:
-
-- API running on `http://localhost:3001`
-- `/health` responds with JSON status
-
-## 6) Start Frontend
-
-```bash
-cd packages/frontend
-bun run dev
-```
-
-Expected output:
-
-- Vite serves app locally
-- Frontend can reach `VITE_API_BASE_URL`
-
-## 7) End-to-End Validation Flow
-
-1. Connect Sepolia wallet in UI.
-2. Click `Evaluate My Credit`.
-3. Complete Plaid Link sandbox auth.
-4. Confirm wallet signature.
-5. API calls CRE gateway and triggers workflow.
-6. Workflow writes score on-chain.
-7. Frontend receives `ScoreUpdated` and refreshes score/LTV.
-
-## 8) Verification Commands
-
-```bash
-# contracts
-cd packages/contracts && forge test --ffi
-
-# workflow unit tests
-cd packages/workflow && bun test
-
-# API + frontend local dev
+# API (port 3001)
 cd packages/api && bun run dev
+
+# Frontend (port 5173)
 cd packages/frontend && bun run dev
 ```
 
-## 9) Troubleshooting
+## 5) Run CRE Workflow (Manual Trigger)
 
-- `cre: command not found`
-  - Install CRE CLI and restart shell.
-- `cre workflow simulate` fails with schema/config errors
-  - Run `cre init` in a temp folder and compare generated template with this repo.
-- CRE deployment rejected due access
-  - Early Access may be required for DON deployment. Keep using `simulate` for local validation.
-- API returns `CRE workflow configuration is missing`
-  - Ensure `.env` has `CRE_WORKFLOW_ID` and `CRE_WORKER_PRIVATE_KEY`.
-- Plaid errors (`INVALID_ACCESS_TOKEN`, auth failures)
-  - Confirm sandbox keys and use sandbox Link flow only.
-- Frontend cannot read score
-  - Recheck deployed contract addresses and chain ID (`11155111`) in `.env`.
+CRE workflow deployment to the DON is not yet available. Instead, use `cre workflow simulate` with `--broadcast` to execute the workflow locally and write the score on-chain.
+
+### 5a) Capture the payload from the frontend
+
+1. Open the frontend (dev servers must be running — see Section 4).
+2. Connect wallet and complete the Plaid Link flow.
+3. After the wallet signature, open browser DevTools console — the payload (`publicToken` + `walletAddress`) will be logged.
+4. Copy the JSON and save it to `packages/workflow/payload.json`:
+
+```json
+{
+  "publicToken": "public-sandbox-afa4124f-...",
+  "walletAddress": "0xYourWalletAddress"
+}
+```
+
+### 5b) Simulate with broadcast
+
+```bash
+cd packages/workflow
+cre workflow simulate . \
+  --target staging-settings \
+  --non-interactive \
+  --trigger-index 0 \
+  --http-payload @payload.json \
+  --broadcast
+```
+
+This will:
+- Run the full workflow locally (token exchange → Plaid data fetch → AI scoring)
+- Broadcast the on-chain transaction to Sepolia, writing the credit score to `CreditOracle`
+
+## 6) Troubleshooting
+
+- **`bun run dev:local` fails with "Missing required environment variables"**
+  Fill in the listed variables in the root `.env` file.
+
+- **API health check times out**
+  Check `/tmp/link-credit-api.log` for startup errors. Ensure `PLAID_CLIENT_ID`, `PLAID_SECRET`, and `WORKER_API_KEY` are set.
+
+- **`cre: command not found`**
+  Install CRE CLI (`brew install chainlink/tap/cre`) and restart shell.
+
+- **`cre workflow simulate` fails with schema/config errors**
+  Run `cre init` in a temp folder and compare generated template with this repo.
+
+- **CRE deployment rejected due to access**
+  Early Access may be required for DON deployment. Use `simulate` for local validation.
+
+- **API returns `CRE workflow configuration is missing`**
+  Ensure `.env` has `CRE_WORKFLOW_ID` and `CRE_WORKER_PRIVATE_KEY`.
+
+- **Plaid errors (`INVALID_ACCESS_TOKEN`, auth failures)**
+  Confirm sandbox keys and use sandbox Link flow only.
+
+- **Frontend cannot read score**
+  Verify `packages/contracts/deployed-addresses.json` has correct Sepolia addresses. Re-deploy if needed.

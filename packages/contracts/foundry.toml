@@ -10,10 +10,13 @@ optimizer = true
 optimizer_runs = 200
 via_ir = true
 bytecode_hash = "none"
-fs_permissions = [{ access = "read-write", path = "out" }, { access = "read", path = "deployed-addresses.json" }]
+fs_permissions = [{ access = "read-write", path = "./" }]
 
 [rpc_endpoints]
 sepolia = "${SEPOLIA_RPC_URL}"
 
 [fuzz]
 runs = 1000
+
+[etherscan]
+sepolia = { key = "${ETHERSCAN_API_KEY}", url = "https://api-sepolia.etherscan.io/api" }

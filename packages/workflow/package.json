@@ -5,7 +5,7 @@
   "scripts": {
     "build": "bunx tsc --noEmit",
     "simulate": "bun run build",
-    "deploy": "cre workflow deploy . --target sepolia",
+    "deploy": "cre workflow deploy . --target staging-settings",
     "test": "bun test"
   },
   "dependencies": {

@@ -1,7 +1,9 @@
-schemaVersion: 1
-name: link-credit
-targets:
-  sepolia:
-    chainRpc:
-      ethereum-testnet-sepolia: "${SEPOLIA_RPC_URL}"
-    ownerAddress: "${DEPLOYER_ADDRESS}"
+staging-settings:
+  rpcs:
+    - chain-name: ethereum-testnet-sepolia
+      url: https://ethereum-sepolia-rpc.publicnode.com
+
+production-settings:
+  rpcs:
+    - chain-name: ethereum-testnet-sepolia
+      url: https://ethereum-sepolia-rpc.publicnode.com

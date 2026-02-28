@@ -9,8 +9,10 @@ contract CreditOracleTest is Test {
 
   address internal owner = address(0xA11CE);
   address internal workflow = address(0xBEEF);
+  address internal forwarder = address(0xF0F0);
   address internal user = address(0xCAFE);
   address internal stranger = address(0xDEAD);
+  bytes32 internal workflowId = keccak256("link-credit-workflow");
 
   function setUp() external {
     vm.prank(owner);
@@ -25,15 +27,48 @@ contract CreditOracleTest is Test {
     assertEq(oracle.getLtvBoost(user), 1_125);
   }
 
-  function test_workflowCanUpdateScore() external {
+  function test_forwarderCanUpdateViaOnReport() external {
     vm.prank(owner);
-    oracle.setCreWorkflow(workflow);
+    oracle.setForwarder(forwarder);
 
-    vm.prank(workflow);
-    oracle.updateScore(user, 8_000);
+    vm.prank(owner);
+    oracle.setWorkflowConfig(workflowId, workflow);
+
+    bytes memory metadata = abi.encode(
+      workflowId,
+      "link-credit",
+      "link-credit-owner",
+      workflow,
+      "score-report"
+    );
+    bytes memory report = abi.encode(user, uint256(8_000));
+
+    vm.prank(forwarder);
+    oracle.onReport(metadata, report);
 
     assertEq(oracle.creditScores(user), 8_000);
     assertEq(oracle.getLtvBoost(user), 1_200);
+  }
+
+  function test_nonForwarderCannotCallOnReport() external {
+    vm.prank(owner);
+    oracle.setForwarder(forwarder);
+
+    vm.prank(owner);
+    oracle.setWorkflowConfig(workflowId, workflow);
+
+    bytes memory metadata = abi.encode(
+      workflowId,
+      "link-credit",
+      "link-credit-owner",
+      workflow,
+      "score-report"
+    );
+    bytes memory report = abi.encode(user, uint256(8_000));
+
+    vm.expectRevert(abi.encodeWithSelector(CreditOracle.UnauthorizedForwarder.selector, stranger));
+    vm.prank(stranger);
+    oracle.onReport(metadata, report);
   }
 
   function test_unauthorizedCannotUpdateScore() external {

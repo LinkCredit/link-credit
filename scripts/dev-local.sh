@@ -1,68 +1,89 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# ---------------------------------------------------------------------------
+# Validate packages/api/.env exists and has required variables
+# ---------------------------------------------------------------------------
+API_ENV="$REPO_ROOT/packages/api/.env"
+if [[ ! -f "$API_ENV" ]]; then
+  echo "ERROR: packages/api/.env not found."
+  echo "Copy packages/api/.env.example to packages/api/.env and fill in all required values."
+  echo "See INTEGRATION.md Section 2 for details."
+  exit 1
+fi
+
+# Source API .env and validate required vars
+set -o allexport
+# shellcheck disable=SC1091
+source "$API_ENV"
+set +o allexport
+
+MISSING=()
+for var in PLAID_CLIENT_ID PLAID_SECRET WORKER_API_KEY TOKEN_ENCRYPTION_KEY; do
+  if [[ -z "${!var:-}" ]]; then
+    MISSING+=("$var")
+  fi
+done
+
+# Validate TOKEN_ENCRYPTION_KEY format (must be 64 hex chars)
+if [[ -n "${TOKEN_ENCRYPTION_KEY:-}" ]] && [[ ! "${TOKEN_ENCRYPTION_KEY}" =~ ^[0-9a-fA-F]{64}$ ]]; then
+  MISSING+=("TOKEN_ENCRYPTION_KEY (must be 64-character hex string)")
+fi
+
+if [[ ${#MISSING[@]} -gt 0 ]]; then
+  echo "ERROR: Missing or invalid required environment variables in packages/api/.env:"
+  for var in "${MISSING[@]}"; do
+    echo "  - $var"
+  done
+  echo ""
+  echo "Generate TOKEN_ENCRYPTION_KEY with: openssl rand -hex 32"
+  echo "See INTEGRATION.md Section 2 for details."
+  exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# Cleanup handler
+# ---------------------------------------------------------------------------
 cleanup() {
   if [[ -n "${API_PID:-}" ]] && kill -0 "$API_PID" 2>/dev/null; then
     echo "Stopping API server (pid: $API_PID)"
     kill "$API_PID"
   fi
-
-  if [[ -n "${ANVIL_PID:-}" ]] && kill -0 "$ANVIL_PID" 2>/dev/null; then
-    echo "Stopping Anvil (pid: $ANVIL_PID)"
-    kill "$ANVIL_PID"
-  fi
 }
 
 trap cleanup EXIT INT TERM
 
-echo "Starting Anvil on http://127.0.0.1:8545 (chainId 31337)..."
-anvil --chain-id 31337 > /tmp/link-credit-anvil.log 2>&1 &
-ANVIL_PID=$!
-sleep 2
+# ---------------------------------------------------------------------------
+# Sync deployed addresses to workflow configs
+# ---------------------------------------------------------------------------
+echo "Syncing deployed addresses to workflow configs..."
+(cd "$REPO_ROOT" && bun run sync:addresses)
 
-echo "Deploying contracts to local Anvil..."
-(
-  cd packages/contracts
-  bun run deploy:local
-)
-
-echo "Generating packages/frontend/.env.local from deployed addresses..."
-bun -e "
-  const fs = require('fs');
-  const raw = require('./packages/contracts/out/deployed-addresses.json');
-  const addrs = raw.deployment ?? raw;
-  const env = [
-    'VITE_RPC_URL=http://127.0.0.1:8545',
-    'VITE_CHAIN_ID=31337',
-    'VITE_CREDIT_ORACLE_ADDRESS=' + addrs.creditOracle,
-    'VITE_POOL_ADDRESS=' + addrs.poolProxy,
-    'VITE_WETH_ADDRESS=' + addrs.weth,
-    'VITE_USDX_ADDRESS=' + addrs.usdx,
-    'VITE_WBTC_ADDRESS=' + addrs.wbtc,
-    'VITE_API_BASE_URL=http://localhost:3001',
-    'VITE_WALLETCONNECT_PROJECT_ID=demo',
-  ].join('\\n') + '\\n';
-  fs.writeFileSync('packages/frontend/.env.local', env);
-  console.log('Frontend .env.local generated:\\n');
-  console.log(env);
-"
-
+# ---------------------------------------------------------------------------
+# Start API dev server
+# ---------------------------------------------------------------------------
 echo "Starting API dev server on http://localhost:3001..."
-bun run dev:api > /tmp/link-credit-api.log 2>&1 &
+(cd "$REPO_ROOT" && bun run dev:api) > /tmp/link-credit-api.log 2>&1 &
 API_PID=$!
 
 echo "Waiting for API server..."
 for i in {1..30}; do
-  if curl -sS http://localhost:3001/ > /dev/null 2>&1; then
+  if curl -sf http://localhost:3001/health > /dev/null 2>&1; then
+    echo "API server ready."
     break
   fi
   if [[ "$i" -eq 30 ]]; then
-    echo "API server did not start in time. Last API logs:"
+    echo "ERROR: API server did not start in time. Last logs:"
     tail -n 50 /tmp/link-credit-api.log || true
     exit 1
   fi
   sleep 1
 done
 
+# ---------------------------------------------------------------------------
+# Start frontend dev server (foreground)
+# ---------------------------------------------------------------------------
 echo "Starting frontend dev server..."
-bun run dev:frontend
+(cd "$REPO_ROOT" && bun run dev:frontend)

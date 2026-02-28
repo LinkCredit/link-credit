@@ -55,6 +55,7 @@ contract DeployCreditMarket is Script, DefaultMarketInput, FfiUtils {
 
     IPoolAddressesProvider(report.poolAddressesProvider).setPoolImpl(address(creditPoolImplementation));
     ICreditPool(report.poolProxy).setCreditOracle(address(creditOracle));
+    creditOracle.setForwarder(0x15fC6ae953E024d975e77382eEeC56A9101f9F88);
 
     vm.stopBroadcast();
 
@@ -71,7 +72,7 @@ contract DeployCreditMarket is Script, DefaultMarketInput, FfiUtils {
     json = vm.serializeAddress('deployment', 'wbtcPriceFeed', listing.WBTC_MOCK_PRICE_FEED());
     json = vm.serializeAddress('deployment', 'usdxPriceFeed', listing.USDX_MOCK_PRICE_FEED());
 
-    vm.writeJson(json, 'out/deployed-addresses.json');
+    vm.writeJson(json, 'deployed-addresses.json');
   }
 
   function _detectFoundryLibrariesAndDelete() internal {

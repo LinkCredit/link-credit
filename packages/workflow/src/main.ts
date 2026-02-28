@@ -16,8 +16,8 @@ import {
   type Runtime,
 } from "@chainlink/cre-sdk";
 import {
-  encodeFunctionData,
-  parseAbi,
+  encodeAbiParameters,
+  parseAbiParameters,
   stringToHex,
   type Address,
   zeroAddress,
@@ -58,10 +58,6 @@ const httpInputSchema = z.object({
   publicToken: z.string().min(1),
   walletAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
 });
-
-const creditOracleAbi = parseAbi([
-  "function updateScore(address user, uint256 scoreBps) external",
-]);
 
 type Config = z.infer<typeof configSchema>;
 type HttpResponse = ReturnType<HTTPSendRequester["sendRequest"]> extends {
@@ -460,6 +456,7 @@ function writeScoreOnChain(
   const network = getNetwork({
     chainFamily: "evm",
     chainSelectorName: config.chainSelectorName,
+    isTestnet: true,
   });
 
   if (!network) {
@@ -468,16 +465,15 @@ function writeScoreOnChain(
 
   const evmClient = new EVMClient(network.chainSelector.selector);
 
-  const callData = encodeFunctionData({
-    abi: creditOracleAbi,
-    functionName: "updateScore",
-    args: [walletAddress as Address, BigInt(scoreBps)],
-  });
+  const reportPayload = encodeAbiParameters(
+    parseAbiParameters("address user, uint256 scoreBps"),
+    [walletAddress as Address, BigInt(scoreBps)],
+  );
 
-  const report = runtime.report(prepareReportRequest(callData)).result();
+  const report = runtime.report(prepareReportRequest(reportPayload)).result();
   evmClient
     .writeReport(runtime, {
-      receiver: hexToBase64(config.oracleContractAddress),
+      receiver: config.oracleContractAddress,
       report,
     })
     .result();

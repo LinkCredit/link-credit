@@ -1,10 +1,16 @@
-schemaVersion: 1
-name: link-credit-scoring
-config:
-  chainSelectorName: "ethereum-testnet-sepolia"
-  oracleContractAddress: "${CREDIT_ORACLE_ADDRESS}"
-  workerBaseUrl: "${WORKER_BASE_URL}"
-  plaidBaseUrl: "https://sandbox.plaid.com"
-  openAiBaseUrl: "${OPENAI_BASE_URL}"
-  openAiModel: "${OPENAI_MODEL}"
-  transactionsLookbackDays: 30
+# ==========================================================================
+staging-settings:
+  user-workflow:
+    workflow-name: "link-credit-scoring-staging"
+  workflow-artifacts:
+    workflow-path: "./src/main.ts"
+    config-path: "./config.staging.json"
+    secrets-path: "./secrets.yaml"
+# ==========================================================================
+production-settings:
+  user-workflow:
+    workflow-name: "link-credit-scoring-production"
+  workflow-artifacts:
+    workflow-path: "./src/main.ts"
+    config-path: "./config.production.json"
+    secrets-path: "./secrets.yaml"

@@ -102,6 +102,8 @@ export function usePlaidLink(
         const message = createWalletOwnershipMessage(publicToken, walletAddress);
         const signature = await signMessageAsync({ message });
 
+        console.log("[trigger-scoring] payload:", JSON.stringify({ publicToken, walletAddress, signature }, null, 2));
+
         const response = await fetch(`${apiBaseUrl}/trigger-scoring`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },

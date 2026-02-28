@@ -1,7 +1,7 @@
 import { getDefaultConfig } from "connectkit";
 import { createConfig, http } from "wagmi";
 import { localhost, sepolia } from "wagmi/chains";
-import { chainId, rpcUrl, walletConnectProjectId } from "./addresses";
+import { chainId, walletConnectProjectId } from "./addresses";
 
 const chains = [localhost, sepolia] as const;
 
@@ -16,12 +16,8 @@ export const wagmiConfig = createConfig(
     enableFamily: false,
     chains,
     transports: {
-      [localhost.id]: http(
-        chainId === localhost.id ? rpcUrl : "http://127.0.0.1:8545"
-      ),
-      [sepolia.id]: http(
-        chainId === sepolia.id ? rpcUrl : sepolia.rpcUrls.default.http[0]
-      ),
+      [localhost.id]: http("http://127.0.0.1:8545"),
+      [sepolia.id]: http(),
     },
     ssr: false,
   })

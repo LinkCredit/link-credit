@@ -15,3 +15,5 @@ packages/contracts/cache/
 
 # Frontend
 packages/frontend/.vite/
+
+.cre_build_tmp.js
