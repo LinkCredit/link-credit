@@ -36,7 +36,7 @@ POOL_ADDRESSES_PROVIDER=$(cat deployed-addresses.json | python3 -c "import json,
 WETH=$(cat deployed-addresses.json | python3 -c "import json,sys; print(json.load(sys.stdin)['weth'])")
 DEFAULT_IRS=$(cat deployed-addresses.json | python3 -c "import json,sys; print(json.load(sys.stdin).get('defaultInterestRateStrategy', ''))")
 
-COMMON_ARGS="--chain sepolia --etherscan-api-key $ETHERSCAN_API_KEY --watch"
+COMMON_ARGS="--chain sepolia --etherscan-api-key $ETHERSCAN_API_KEY --watch --retries 5 --delay 5"
 
 echo "=== Verifying CreditOracle ==="
 forge verify-contract "$CREDIT_ORACLE" \
@@ -45,6 +45,8 @@ forge verify-contract "$CREDIT_ORACLE" \
   --constructor-args $(cast abi-encode "constructor(address)" "$DEPLOYER") \
   || echo "  [!] CreditOracle verification failed or already verified"
 
+sleep 2
+
 echo ""
 echo "=== Verifying CreditPoolInstance ==="
 forge verify-contract "$CREDIT_POOL_IMPL" \
@@ -52,6 +54,8 @@ forge verify-contract "$CREDIT_POOL_IMPL" \
   $COMMON_ARGS \
   --constructor-args $(cast abi-encode "constructor(address,address)" "$POOL_ADDRESSES_PROVIDER" "$DEFAULT_IRS") \
   || echo "  [!] CreditPoolInstance verification failed or already verified"
+
+sleep 2
 
 echo ""
 echo "=== Verifying WETH9 ==="

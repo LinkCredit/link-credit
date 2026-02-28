@@ -4,8 +4,8 @@
   "version": "0.0.1",
   "scripts": {
     "build": "forge build",
-    "deploy:sepolia": "forge script script/DeployCreditMarket.s.sol --rpc-url sepolia --broadcast --verify --ffi",
-    "verify:sepolia": "forge script script/DeployCreditMarket.s.sol --rpc-url sepolia --verify --resume --ffi",
+    "deploy:sepolia": "forge script script/DeployCreditMarket.s.sol --rpc-url sepolia --broadcast --verify --delay 5 --retries 5 --ffi",
+    "verify:sepolia": "forge script script/DeployCreditMarket.s.sol --rpc-url sepolia --verify --resume --delay 5 --retries 5 --ffi",
     "verify:manual": "bash script/verify-manual.sh",
     "test": "forge test --ffi"
   }
