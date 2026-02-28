@@ -59,12 +59,26 @@ contract DeployCreditMarket is Script, DefaultMarketInput, FfiUtils {
 
     vm.stopBroadcast();
 
+    // -- Link Credit custom contracts --
     string memory json = vm.serializeAddress('deployment', 'deployer', deployer);
+    json = vm.serializeAddress('deployment', 'creditOracle', address(creditOracle));
+    json = vm.serializeAddress('deployment', 'creditPoolImplementation', address(creditPoolImplementation));
+
+    // -- Aave v3 core --
     json = vm.serializeAddress('deployment', 'poolAddressesProvider', report.poolAddressesProvider);
     json = vm.serializeAddress('deployment', 'poolProxy', report.poolProxy);
     json = vm.serializeAddress('deployment', 'poolImplementation', report.poolImplementation);
-    json = vm.serializeAddress('deployment', 'creditPoolImplementation', address(creditPoolImplementation));
-    json = vm.serializeAddress('deployment', 'creditOracle', address(creditOracle));
+    json = vm.serializeAddress('deployment', 'poolConfiguratorProxy', report.poolConfiguratorProxy);
+    json = vm.serializeAddress('deployment', 'poolConfiguratorImplementation', report.poolConfiguratorImplementation);
+    json = vm.serializeAddress('deployment', 'aclManager', report.aclManager);
+    json = vm.serializeAddress('deployment', 'aaveOracle', report.aaveOracle);
+    json = vm.serializeAddress('deployment', 'protocolDataProvider', report.protocolDataProvider);
+    json = vm.serializeAddress('deployment', 'defaultInterestRateStrategy', report.defaultInterestRateStrategy);
+    json = vm.serializeAddress('deployment', 'treasury', report.treasury);
+    json = vm.serializeAddress('deployment', 'emissionManager', report.emissionManager);
+    json = vm.serializeAddress('deployment', 'rewardsControllerProxy', report.rewardsControllerProxy);
+
+    // -- Test tokens & price feeds --
     json = vm.serializeAddress('deployment', 'weth', weth);
     json = vm.serializeAddress('deployment', 'wbtc', listing.WBTC_ADDRESS());
     json = vm.serializeAddress('deployment', 'usdx', listing.USDX_ADDRESS());

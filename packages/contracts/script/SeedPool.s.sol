@@ -10,20 +10,20 @@ interface ITestnetERC20 {
 }
 
 contract SeedPool is Script {
-  uint256 constant WBTC_AMOUNT = 100e8; // 100 WBTC (8 decimals)
+  uint256 constant USDX_AMOUNT = 1_000_000e6; // 1,000,000 USDX (6 decimals)
 
   function run() external {
     string memory json = vm.readFile('deployed-addresses.json');
     address poolProxy = vm.parseJsonAddress(json, '.poolProxy');
-    address wbtc = vm.parseJsonAddress(json, '.wbtc');
+    address usdx = vm.parseJsonAddress(json, '.usdx');
 
     address deployer = vm.parseJsonAddress(json, '.deployer');
     vm.startBroadcast();
 
-    ITestnetERC20(wbtc).mint(deployer, WBTC_AMOUNT);
-    ITestnetERC20(wbtc).approve(poolProxy, WBTC_AMOUNT);
-    IPool(poolProxy).supply(wbtc, WBTC_AMOUNT, deployer, 0);
-    console.log('Supplied 100 WBTC to pool');
+    ITestnetERC20(usdx).mint(deployer, USDX_AMOUNT);
+    ITestnetERC20(usdx).approve(poolProxy, USDX_AMOUNT);
+    IPool(poolProxy).supply(usdx, USDX_AMOUNT, deployer, 0);
+    console.log('Supplied 1,000,000 USDX to pool');
 
     vm.stopBroadcast();
   }

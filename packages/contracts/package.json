@@ -5,6 +5,8 @@
   "scripts": {
     "build": "forge build",
     "deploy:sepolia": "forge script script/DeployCreditMarket.s.sol --rpc-url sepolia --broadcast --verify --ffi",
+    "verify:sepolia": "forge script script/DeployCreditMarket.s.sol --rpc-url sepolia --verify --resume --ffi",
+    "verify:manual": "bash script/verify-manual.sh",
     "test": "forge test --ffi"
   }
 }
