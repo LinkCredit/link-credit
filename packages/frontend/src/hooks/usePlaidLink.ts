@@ -5,37 +5,6 @@ import { apiBaseUrl } from "../config/addresses";
 
 type SignMessageAsync = (variables: { message: string }) => Promise<string>;
 
-function getOAuthRedirectUri(): string | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  const query = new URLSearchParams(window.location.search);
-  if (!query.get("oauth_state_id")) {
-    return null;
-  }
-
-  return window.location.href;
-}
-
-function cleanOAuthParams(): void {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  const url = new URL(window.location.href);
-  if (!url.searchParams.has("oauth_state_id")) {
-    return;
-  }
-
-  url.searchParams.delete("oauth_state_id");
-  url.searchParams.delete("oauth_state");
-
-  const query = url.searchParams.toString();
-  const next = `${url.pathname}${query ? `?${query}` : ""}${url.hash}`;
-  window.history.replaceState(window.history.state, "", next);
-}
-
 function formatError(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
@@ -63,18 +32,10 @@ export function usePlaidLink(
   const [openQueued, setOpenQueued] = useState(false);
   const [isPreparing, setIsPreparing] = useState(false);
   const [isEvaluating, setIsEvaluating] = useState(false);
-  const [hasAttemptedOAuthResume, setHasAttemptedOAuthResume] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [receivedRedirectUri, setReceivedRedirectUri] = useState<string | null>(
-    null,
-  );
 
   useEffect(() => {
     setLinkToken(null);
-
-    const redirectUri = getOAuthRedirectUri();
-    setReceivedRedirectUri(redirectUri);
-    setHasAttemptedOAuthResume(!redirectUri);
   }, [walletAddress]);
 
   const runEvaluation = useCallback(
@@ -125,11 +86,7 @@ export function usePlaidLink(
 
   const { open, ready } = usePlaidWidget({
     token: linkToken,
-    receivedRedirectUri: receivedRedirectUri ?? undefined,
     onSuccess: (publicToken) => {
-      cleanOAuthParams();
-      setReceivedRedirectUri(null);
-      setHasAttemptedOAuthResume(true);
       void runEvaluation(publicToken);
     },
     onExit: (plaidError) => {
@@ -198,31 +155,6 @@ export function usePlaidLink(
     open();
     setOpenQueued(false);
   }, [openQueued, open, ready]);
-
-  useEffect(() => {
-    if (!receivedRedirectUri || !walletAddress || hasAttemptedOAuthResume) {
-      return;
-    }
-
-    setHasAttemptedOAuthResume(true);
-    setOpenQueued(true);
-    setError(null);
-    setIsPreparing(true);
-
-    void fetchLinkToken()
-      .catch((resumeError) => {
-        setOpenQueued(false);
-        setError(formatError(resumeError));
-      })
-      .finally(() => {
-        setIsPreparing(false);
-      });
-  }, [
-    fetchLinkToken,
-    hasAttemptedOAuthResume,
-    receivedRedirectUri,
-    walletAddress,
-  ]);
 
   return {
     launch,

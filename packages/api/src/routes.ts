@@ -78,7 +78,6 @@ export async function createLinkTokenHandler(c: ApiContext) {
 
   const plaidBaseUrl =
     readRuntimeEnv(c.env, "PLAID_BASE_URL") ?? "https://sandbox.plaid.com";
-  const redirectUri = readRuntimeEnv(c.env, "PLAID_REDIRECT_URI");
   const plaidPayload = {
     client_id: plaidClientId,
     secret: plaidSecret,
@@ -89,7 +88,6 @@ export async function createLinkTokenHandler(c: ApiContext) {
     products: ["transactions"],
     country_codes: ["US"],
     language: "en",
-    ...(redirectUri ? { redirect_uri: redirectUri } : {}),
   };
 
   const response = await fetch(`${plaidBaseUrl}/link/token/create`, {
@@ -150,6 +148,12 @@ export async function triggerScoringHandler(c: ApiContext) {
     publicToken: parsed.value.publicToken,
     walletAddress: getAddress(parsed.value.walletAddress),
   };
+
+  // DO NOT DELETE - Debug log for manual workflow testing
+  // Copy this output to packages/workflow/payload.json for local debugging
+  console.log('=== TRIGGER PAYLOAD FOR WORKFLOW DEBUG ===');
+  console.log(JSON.stringify(triggerPayload, null, 2));
+  console.log('==========================================');
 
   const requestBody = {
     jsonrpc: "2.0",

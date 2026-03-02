@@ -101,19 +101,20 @@ cd packages/frontend && bun run dev
 
 CRE workflow deployment to the DON is not yet available. Instead, use `cre workflow simulate` with `--broadcast` to execute the workflow locally and write the score on-chain.
 
-### 5a) Capture the payload from the frontend
+### 5a) Capture the payload from the API server
 
 1. Open the frontend (dev servers must be running — see Section 4).
 2. Connect wallet and complete the Plaid Link flow.
-3. After the wallet signature, open browser DevTools console — the payload (`publicToken` + `walletAddress`) will be logged.
-4. Copy the JSON and save it to `packages/workflow/payload.json`:
-
-```json
-{
-  "publicToken": "public-sandbox-afa4124f-...",
-  "walletAddress": "0xYourWalletAddress"
-}
-```
+3. After the wallet signature, check the **API server console** (the terminal where `bun run dev:local` or `bun run dev` is running) — the payload will be logged with clear markers:
+   ```
+   === TRIGGER PAYLOAD FOR WORKFLOW DEBUG ===
+   {
+     "publicToken": "public-sandbox-afa4124f-...",
+     "walletAddress": "0xYourWalletAddress"
+   }
+   ==========================================
+   ```
+4. Copy the JSON (between the markers) and save it to `packages/workflow/payload.json`.
 
 ### 5b) Simulate with broadcast
 

@@ -9,7 +9,6 @@ export interface EnvBindings {
   PLAID_CLIENT_ID?: string;
   PLAID_SECRET?: string;
   PLAID_BASE_URL?: string;
-  PLAID_REDIRECT_URI?: string;
   CRE_GATEWAY_URL?: string;
   CRE_WORKFLOW_ID?: string;
   CRE_WORKFLOW_METHOD?: string;

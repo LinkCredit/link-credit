@@ -17,6 +17,7 @@ import {IReserveInterestRateStrategy} from '@link-credit/interfaces/IReserveInte
 import {ICreditPool} from '@link-credit/interfaces/ICreditPool.sol';
 import {CreditOracle} from '@link-credit/CreditOracle.sol';
 import {CreditPoolInstance} from '@link-credit/instances/CreditPoolInstance.sol';
+import {IAaveOracle} from 'aave-v3-origin/src/contracts/interfaces/IAaveOracle.sol';
 
 contract DeployCreditMarket is Script, DefaultMarketInput, FfiUtils {
   function run() external {
@@ -46,6 +47,18 @@ contract DeployCreditMarket is Script, DefaultMarketInput, FfiUtils {
 
     ACLManager(report.aclManager).addPoolAdmin(address(listing));
     listing.execute();
+
+    // Update price feeds to use Chainlink
+    address[] memory assets = new address[](2);
+    address[] memory sources = new address[](2);
+
+    assets[0] = listing.WETH_ADDRESS();
+    sources[0] = 0x694AA1769357215DE4FAC081bf1f309aDC325306; // Chainlink ETH/USD
+
+    assets[1] = listing.WBTC_ADDRESS();
+    sources[1] = 0x1b44F3514812d835EB1BDB0acB33d3fA3351Ee43; // Chainlink BTC/USD
+
+    IAaveOracle(report.aaveOracle).setAssetSources(assets, sources);
 
     CreditOracle creditOracle = new CreditOracle(deployer);
     CreditPoolInstance creditPoolImplementation = new CreditPoolInstance(
@@ -82,8 +95,8 @@ contract DeployCreditMarket is Script, DefaultMarketInput, FfiUtils {
     json = vm.serializeAddress('deployment', 'weth', weth);
     json = vm.serializeAddress('deployment', 'wbtc', listing.WBTC_ADDRESS());
     json = vm.serializeAddress('deployment', 'usdx', listing.USDX_ADDRESS());
-    json = vm.serializeAddress('deployment', 'wethPriceFeed', listing.WETH_MOCK_PRICE_FEED());
-    json = vm.serializeAddress('deployment', 'wbtcPriceFeed', listing.WBTC_MOCK_PRICE_FEED());
+    json = vm.serializeAddress('deployment', 'wethPriceFeed', 0x694AA1769357215DE4FAC081bf1f309aDC325306);
+    json = vm.serializeAddress('deployment', 'wbtcPriceFeed', 0x1b44F3514812d835EB1BDB0acB33d3fA3351Ee43);
     json = vm.serializeAddress('deployment', 'usdxPriceFeed', listing.USDX_MOCK_PRICE_FEED());
 
     vm.writeJson(json, 'deployed-addresses.json');
