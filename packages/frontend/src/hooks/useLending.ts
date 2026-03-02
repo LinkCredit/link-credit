@@ -120,7 +120,7 @@ export function useLending() {
   );
 
   const borrow = useCallback(
-    async (asset: Address, rawAmount: string) => {
+    async (asset: Address, rawAmount: string, maxAmountUnits?: bigint) => {
       setError(null);
       if (!address) {
         setError("Connect wallet first.");
@@ -133,6 +133,10 @@ export function useLending() {
 
       try {
         const amount = await resolveAmount(asset, rawAmount);
+        if (typeof maxAmountUnits === "bigint" && amount > maxAmountUnits) {
+          setError("Borrow amount exceeds current maximum available.");
+          return;
+        }
         setPendingAction("Borrow");
         const hash = await writeContractAsync({
           abi: poolAbi,

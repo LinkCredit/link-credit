@@ -17,6 +17,9 @@ export const addresses = {
   weth: parseAddress(deployed.weth),
   usdx: parseAddress(deployed.usdx),
   wbtc: parseAddress(deployed.wbtc),
+  wethPriceFeed: parseAddress(deployed.wethPriceFeed),
+  usdxPriceFeed: parseAddress(deployed.usdxPriceFeed),
+  wbtcPriceFeed: parseAddress(deployed.wbtcPriceFeed),
 } as const;
 
 export const chainId = 11155111; // Sepolia
