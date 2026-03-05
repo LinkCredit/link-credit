@@ -1,6 +1,12 @@
 import type { Context } from "hono";
 import { getAddress } from "viem";
-import { createCreJwt, hasValidApiKey, verifyWalletSignature } from "./auth";
+import { signRequest } from "@worldcoin/idkit-core";
+import {
+  createCreJwt,
+  hasValidApiKey,
+  verifyWalletSignature,
+  verifyWorldIdSignature,
+} from "./auth";
 import {
   enqueueWallet,
   nextUserRecord,
@@ -14,6 +20,8 @@ import type {
   EnvBindings,
   JsonObject,
   TriggerGatewayPayload,
+  TriggerWorldIdGatewayPayload,
+  TriggerWorldIdRequest,
   TriggerScoringRequest,
 } from "./types";
 import {
@@ -45,6 +53,40 @@ function parseTriggerScoringRequest(
     ok: true,
     value: {
       publicToken,
+      walletAddress,
+      signature,
+    },
+  };
+}
+
+function parseTriggerWorldIdRequest(
+  body: JsonObject,
+): { ok: true; value: TriggerWorldIdRequest } | { ok: false; error: string } {
+  const proof = pickString(body, ["proof"]);
+  const merkleRoot = pickString(body, ["merkle_root", "merkleRoot"]);
+  const nullifierHash = pickString(body, ["nullifier_hash", "nullifierHash"]);
+  const verificationLevel = pickString(body, [
+    "verification_level",
+    "verificationLevel",
+  ]);
+  const walletAddress = pickString(body, ["walletAddress"]);
+  const signature = pickString(body, ["signature"]);
+
+  if (!proof || !merkleRoot || !nullifierHash || !verificationLevel || !walletAddress || !signature) {
+    return {
+      ok: false,
+      error:
+        "proof, merkle_root, nullifier_hash, verification_level, walletAddress, and signature are required",
+    };
+  }
+
+  return {
+    ok: true,
+    value: {
+      proof,
+      merkle_root: merkleRoot,
+      nullifier_hash: nullifierHash,
+      verification_level: verificationLevel,
       walletAddress,
       signature,
     },
@@ -200,6 +242,98 @@ export async function triggerScoringHandler(c: ApiContext) {
   });
 }
 
+export async function triggerWorldIdHandler(c: ApiContext) {
+  const body = await parseBody(c);
+  if (!body) {
+    return c.json({ error: "Invalid JSON body" }, 400);
+  }
+
+  const parsed = parseTriggerWorldIdRequest(body);
+  if (!parsed.ok) {
+    return c.json({ error: parsed.error }, 400);
+  }
+
+  const signatureMatches = await verifyWorldIdSignature(parsed.value);
+  if (!signatureMatches) {
+    return c.json({ error: "Signature verification failed" }, 401);
+  }
+
+  const workflowId = readRuntimeEnv(c.env, "CRE_WORLDID_WORKFLOW_ID");
+  const privateKey = readRuntimeEnv(c.env, "CRE_WORKER_PRIVATE_KEY");
+  if (!workflowId || !privateKey) {
+    return c.json({ error: "World ID CRE workflow configuration is missing" }, 500);
+  }
+
+  const gatewayUrl =
+    readRuntimeEnv(c.env, "CRE_GATEWAY_URL") ??
+    "https://gateway.chain.link/v1/workflows/execute";
+  const gatewayMethod =
+    readRuntimeEnv(c.env, "CRE_WORKFLOW_METHOD") ?? "workflow_execute";
+
+  const normalizedWallet = normalizeAddress(parsed.value.walletAddress);
+  if (!normalizedWallet) {
+    return c.json({ error: "Invalid walletAddress" }, 400);
+  }
+
+  const triggerPayload: TriggerWorldIdGatewayPayload = {
+    proof: parsed.value.proof,
+    merkle_root: parsed.value.merkle_root,
+    nullifier_hash: parsed.value.nullifier_hash,
+    verification_level: parsed.value.verification_level,
+    walletAddress: normalizedWallet,
+  };
+
+  // DO NOT DELETE - Debug log for manual workflow testing
+  // Copy this output to packages/worldid-workflow/payload.json for local debugging
+  console.log('=== WORLDID TRIGGER PAYLOAD FOR WORKFLOW DEBUG ===');
+  console.log(JSON.stringify(triggerPayload, null, 2));
+  console.log('===================================================');
+
+  const requestBody = {
+    jsonrpc: "2.0",
+    id: crypto.randomUUID(),
+    method: gatewayMethod,
+    params: {
+      workflowId,
+      payload: triggerPayload,
+    },
+  };
+
+  const bodyText = JSON.stringify(requestBody);
+  const jwt = createCreJwt({
+    workflowId,
+    privateKey,
+    bodyText,
+  });
+
+  const gatewayResponse = await fetch(gatewayUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${jwt}`,
+    },
+    body: bodyText,
+  });
+
+  const responseBody = await gatewayResponse.text();
+  if (!gatewayResponse.ok) {
+    return c.json(
+      {
+        error: "CRE gateway rejected World ID trigger request",
+        gatewayStatus: gatewayResponse.status,
+        gatewayBody: safeParseJson(responseBody) ?? responseBody,
+      },
+      502,
+    );
+  }
+
+  return c.json({
+    accepted: true,
+    walletAddress: triggerPayload.walletAddress,
+    gateway: safeParseJson(responseBody) ?? { raw: responseBody },
+  });
+}
+
 export async function accessTokenHandler(c: ApiContext) {
   if (!hasValidApiKey(c, readRuntimeEnv(c.env, "WORKER_API_KEY"))) {
     return c.json({ error: "Unauthorized" }, 401);
@@ -259,4 +393,40 @@ export async function nextUserHandler(c: ApiContext) {
     updatedAt: record.updatedAt,
     lastScore: record.lastScore,
   });
+}
+
+export async function generateRpSignatureHandler(c: ApiContext) {
+  const body = await parseBody(c);
+  if (!body) {
+    return c.json({ error: "Invalid JSON body" }, 400);
+  }
+
+  const action = pickString(body, ["action"]);
+  if (!action) {
+    return c.json({ error: "action is required" }, 400);
+  }
+
+  const rpId = readRuntimeEnv(c.env, "WORLDCOIN_RP_ID");
+  const signingKey = readRuntimeEnv(c.env, "WORLDCOIN_RP_SIGNING_KEY");
+
+  if (!rpId || !signingKey) {
+    return c.json({ error: "World ID RP configuration is missing" }, 500);
+  }
+
+  try {
+    const rpSignature = signRequest(action, signingKey);
+
+    return c.json({
+      rp_id: rpId,
+      nonce: rpSignature.nonce,
+      created_at: rpSignature.createdAt,
+      expires_at: rpSignature.expiresAt,
+      signature: rpSignature.sig,
+    });
+  } catch (error) {
+    return c.json(
+      { error: "Failed to generate RP signature", details: String(error) },
+      500
+    );
+  }
 }

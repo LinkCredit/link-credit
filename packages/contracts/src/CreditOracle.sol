@@ -4,11 +4,13 @@ pragma solidity ^0.8.27;
 import {Ownable} from 'openzeppelin-contracts/contracts/access/Ownable.sol';
 import {ICreditOracle} from '@link-credit/ICreditOracle.sol';
 import {IReceiver} from 'chainlink-keystone/IReceiver.sol';
+import {WorldIDRegistry} from '@link-credit/WorldIDRegistry.sol';
 
 contract CreditOracle is Ownable, ICreditOracle, IReceiver {
   uint256 public constant MAX_LTV_BOOST_BPS = 1500;
 
   mapping(address => uint256) public creditScores;
+  WorldIDRegistry public worldIdRegistry;
   address public creWorkflow;
   address public s_forwarder;
   bytes32 public s_allowedWorkflowId;
@@ -21,6 +23,7 @@ contract CreditOracle is Ownable, ICreditOracle, IReceiver {
 
   event ForwarderUpdated(address indexed forwarder);
   event WorkflowConfigUpdated(bytes32 indexed workflowId, address indexed workflowOwner);
+  event WorldIdRegistryUpdated(address indexed registry);
 
   constructor(address owner_) Ownable(owner_) {}
 
@@ -31,7 +34,7 @@ contract CreditOracle is Ownable, ICreditOracle, IReceiver {
     _storeScore(user, scoreBps);
   }
 
-  function onReport(bytes calldata metadata, bytes calldata report) external {
+  function onReport(bytes calldata, bytes calldata report) external {
     if (msg.sender != s_forwarder) {
       revert UnauthorizedForwarder(msg.sender);
     }
@@ -63,6 +66,11 @@ contract CreditOracle is Ownable, ICreditOracle, IReceiver {
     emit CreWorkflowUpdated(workflow);
   }
 
+  function setWorldIdRegistry(address registry) external onlyOwner {
+    worldIdRegistry = WorldIDRegistry(registry);
+    emit WorldIdRegistryUpdated(registry);
+  }
+
   function _storeScore(address user, uint256 scoreBps) internal {
     if (scoreBps > 10_000) {
       revert InvalidScore(scoreBps);
@@ -77,7 +85,14 @@ contract CreditOracle is Ownable, ICreditOracle, IReceiver {
     if (score == 0) {
       return 0;
     }
-    return (MAX_LTV_BOOST_BPS * score) / 10_000;
+
+    uint256 baseBoost = (MAX_LTV_BOOST_BPS * score) / 10_000;
+    if (address(worldIdRegistry) == address(0)) {
+      return baseBoost;
+    }
+
+    uint256 worldIdBoost = worldIdRegistry.getVerificationBoost(user);
+    return baseBoost + worldIdBoost;
   }
 
 }

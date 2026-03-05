@@ -3,9 +3,11 @@ import { cors } from "hono/cors";
 import {
   accessTokenHandler,
   createLinkTokenHandler,
+  generateRpSignatureHandler,
   healthHandler,
   nextUserHandler,
   triggerScoringHandler,
+  triggerWorldIdHandler,
 } from "./routes";
 import type { EnvBindings } from "./types";
 
@@ -25,6 +27,8 @@ app.use(
 app.get("/health", healthHandler);
 app.post("/plaid/link-token", createLinkTokenHandler);
 app.post("/trigger-scoring", triggerScoringHandler);
+app.post("/trigger-worldid", triggerWorldIdHandler);
+app.post("/worldid/rp-signature", generateRpSignatureHandler);
 app.put("/access-token", accessTokenHandler);
 app.get("/next-user", nextUserHandler);
 

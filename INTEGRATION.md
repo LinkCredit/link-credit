@@ -35,6 +35,9 @@ Copy `packages/api/.env.example` to `packages/api/.env` and fill in:
 | `PLAID_SECRET` | Plaid Dashboard | Sandbox key |
 | `WORKER_API_KEY` | Any string | For internal API auth (e.g., `dev-api-key-change-me`) |
 | `TOKEN_ENCRYPTION_KEY` | Generate | 64-char hex string: `openssl rand -hex 32` |
+| `WORLDCOIN_APP_ID` | [World ID Developer Portal](https://developer.worldcoin.org) | World ID app ID (e.g., `app_staging_xxx`) |
+| `WORLDCOIN_RP_ID` | World ID Developer Portal | World ID v4 RP ID (e.g., `rp_xxx`) |
+| `WORLDCOIN_RP_SIGNING_KEY` | World ID Developer Portal | World ID v4 signing key (keep secret!) |
 
 ### For CRE workflow (`packages/workflow/.env`) — REQUIRED for manual trigger
 
@@ -132,7 +135,45 @@ This will:
 - Run the full workflow locally (token exchange → Plaid data fetch → AI scoring)
 - Broadcast the on-chain transaction to Sepolia, writing the credit score to `CreditOracle`
 
-## 6) Troubleshooting
+## 6) Run WorldID Workflow (Manual Trigger)
+
+Similar to the main workflow, WorldID verification can be tested locally using `cre workflow simulate`.
+
+### 6a) Capture the WorldID payload from the API server
+
+1. Open the frontend (dev servers must be running).
+2. Connect wallet and complete the World ID verification flow.
+3. After the wallet signature, check the **API server console** — the payload will be logged:
+   ```
+   === WORLDID TRIGGER PAYLOAD FOR WORKFLOW DEBUG ===
+   {
+     "proof": "0x...",
+     "merkle_root": "0x...",
+     "nullifier_hash": "0x...",
+     "verification_level": "device",
+     "walletAddress": "0xYourWalletAddress"
+   }
+   ===================================================
+   ```
+4. Copy the JSON and save it to `packages/worldid-workflow/payload.json`.
+
+### 6b) Simulate with broadcast
+
+```bash
+cd packages/worldid-workflow
+cre workflow simulate . \
+  --target staging-settings \
+  --non-interactive \
+  --trigger-index 0 \
+  --http-payload @payload.json \
+  --broadcast
+```
+
+This will:
+- Verify the World ID proof with the World ID Developer Portal API
+- Broadcast the verification result to `WorldIDRegistry` contract on Sepolia
+
+## 7) Troubleshooting
 
 - **`bun run dev:local` fails with "Missing required environment variables"**
   Fill in the listed variables in the root `.env` file.

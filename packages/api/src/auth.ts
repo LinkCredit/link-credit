@@ -4,7 +4,11 @@ import { bytesToHex, hexToBytes } from "@noble/hashes/utils.js";
 import type { Context } from "hono";
 import { verifyMessage } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import type { CreJwtClaims, TriggerScoringRequest } from "./types";
+import type {
+  CreJwtClaims,
+  TriggerScoringRequest,
+  TriggerWorldIdRequest,
+} from "./types";
 import {
   base64UrlEncodeBytes,
   base64UrlEncodeJson,
@@ -23,6 +27,41 @@ export function createWalletOwnershipMessage(
   ].join("\n");
 }
 
+export function createWorldIdOwnershipMessage(input: {
+  walletAddress: string;
+  merkleRoot: string;
+  nullifierHash: string;
+  verificationLevel: string;
+}): string {
+  return [
+    "Link Credit World ID authorization",
+    `walletAddress:${input.walletAddress}`,
+    `merkleRoot:${input.merkleRoot}`,
+    `nullifierHash:${input.nullifierHash}`,
+    `verificationLevel:${input.verificationLevel}`,
+  ].join("\n");
+}
+
+async function verifySignatureAgainstCandidates(input: {
+  address: string;
+  signature: string;
+  messages: string[];
+}): Promise<boolean> {
+  for (const message of input.messages) {
+    const verified = await verifyMessage({
+      address: input.address as `0x${string}`,
+      message,
+      signature: input.signature as `0x${string}`,
+    }).catch(() => false);
+
+    if (verified) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 export async function verifyWalletSignature(
   payload: TriggerScoringRequest,
 ): Promise<boolean> {
@@ -36,19 +75,41 @@ export async function verifyWalletSignature(
     createWalletOwnershipMessage(payload.publicToken, normalizedWallet),
   ];
 
-  for (const message of candidates) {
-    const verified = await verifyMessage({
-      address: normalizedWallet,
-      message,
-      signature: payload.signature as `0x${string}`,
-    }).catch(() => false);
+  return verifySignatureAgainstCandidates({
+    address: normalizedWallet,
+    signature: payload.signature,
+    messages: candidates,
+  });
+}
 
-    if (verified) {
-      return true;
-    }
+export async function verifyWorldIdSignature(
+  payload: TriggerWorldIdRequest,
+): Promise<boolean> {
+  const normalizedWallet = normalizeAddress(payload.walletAddress);
+  if (!normalizedWallet) {
+    return false;
   }
 
-  return false;
+  const candidates = [
+    createWorldIdOwnershipMessage({
+      walletAddress: payload.walletAddress,
+      merkleRoot: payload.merkle_root,
+      nullifierHash: payload.nullifier_hash,
+      verificationLevel: payload.verification_level,
+    }),
+    createWorldIdOwnershipMessage({
+      walletAddress: normalizedWallet,
+      merkleRoot: payload.merkle_root,
+      nullifierHash: payload.nullifier_hash,
+      verificationLevel: payload.verification_level,
+    }),
+  ];
+
+  return verifySignatureAgainstCandidates({
+    address: normalizedWallet,
+    signature: payload.signature,
+    messages: candidates,
+  });
 }
 
 export function createCreJwt(input: {

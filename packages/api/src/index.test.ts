@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createWalletOwnershipMessage } from "./auth";
+import { createWalletOwnershipMessage, createWorldIdOwnershipMessage } from "./auth";
 import {
   enqueueWallet,
   nextUserRecord,
@@ -17,6 +17,23 @@ describe("createWalletOwnershipMessage", () => {
     expect(message).toContain("Link Credit scoring authorization");
     expect(message).toContain("publicToken:public-123");
     expect(message).toContain("walletAddress:0xabc");
+  });
+});
+
+describe("createWorldIdOwnershipMessage", () => {
+  test("includes world id fields in deterministic format", () => {
+    const message = createWorldIdOwnershipMessage({
+      walletAddress: "0xabc",
+      merkleRoot: "root",
+      nullifierHash: "nullifier",
+      verificationLevel: "device",
+    });
+
+    expect(message).toContain("Link Credit World ID authorization");
+    expect(message).toContain("walletAddress:0xabc");
+    expect(message).toContain("merkleRoot:root");
+    expect(message).toContain("nullifierHash:nullifier");
+    expect(message).toContain("verificationLevel:device");
   });
 });
 

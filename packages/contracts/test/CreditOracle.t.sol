@@ -3,6 +3,7 @@ pragma solidity ^0.8.27;
 
 import {Test} from 'forge-std/Test.sol';
 import {CreditOracle} from '@link-credit/CreditOracle.sol';
+import {WorldIDRegistry} from '@link-credit/WorldIDRegistry.sol';
 
 contract CreditOracleTest is Test {
   CreditOracle internal oracle;
@@ -13,6 +14,7 @@ contract CreditOracleTest is Test {
   address internal user = address(0xCAFE);
   address internal stranger = address(0xDEAD);
   bytes32 internal workflowId = keccak256("link-credit-workflow");
+  bytes32 internal nullifier = keccak256("nullifier");
 
   function setUp() external {
     vm.prank(owner);
@@ -104,5 +106,24 @@ contract CreditOracleTest is Test {
     vm.prank(owner);
     oracle.setCreWorkflow(workflow);
     assertEq(oracle.creWorkflow(), workflow);
+  }
+
+  function test_worldIdBoostIncludedInLtvBoost() external {
+    WorldIDRegistry registry;
+
+    vm.startPrank(owner);
+    oracle.updateScore(user, 8_000);
+
+    registry = new WorldIDRegistry(owner);
+    registry.setForwarder(forwarder);
+    oracle.setWorldIdRegistry(address(registry));
+    vm.stopPrank();
+
+    bytes memory metadata = abi.encode("worldid");
+    bytes memory report = abi.encode(user, true, uint256(0), nullifier);
+    vm.prank(forwarder);
+    registry.onReport(metadata, report);
+
+    assertEq(oracle.getLtvBoost(user), 2_200); // 1,200 base + 1,000 World ID
   }
 }

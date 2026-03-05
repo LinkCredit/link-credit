@@ -1,0 +1,14 @@
+# ==========================================================================
+staging-settings:
+  user-workflow:
+    workflow-name: "link-credit-worldid-staging"
+  workflow-artifacts:
+    workflow-path: "./src/main.ts"
+    config-path: "./config.staging.json"
+# ==========================================================================
+production-settings:
+  user-workflow:
+    workflow-name: "link-credit-worldid-production"
+  workflow-artifacts:
+    workflow-path: "./src/main.ts"
+    config-path: "./config.production.json"

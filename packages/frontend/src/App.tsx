@@ -1,6 +1,7 @@
 import { CreditScorePanel } from "./components/CreditScorePanel";
 import { Header } from "./components/Header";
 import { LendingPanel } from "./components/LendingPanel";
+import { WorldIDVerification } from "./components/WorldIDVerification";
 import { isDeployed } from "./config/addresses";
 
 export default function App() {
@@ -17,6 +18,7 @@ export default function App() {
             from repo root.
           </div>
         ) : null}
+        <WorldIDVerification />
         <div className="grid gap-6 lg:grid-cols-2">
           <CreditScorePanel />
           <LendingPanel />

@@ -16,6 +16,7 @@ import {IPoolAddressesProvider} from 'aave-v3-origin/src/contracts/interfaces/IP
 import {IReserveInterestRateStrategy} from '@link-credit/interfaces/IReserveInterestRateStrategy.sol';
 import {ICreditPool} from '@link-credit/interfaces/ICreditPool.sol';
 import {CreditOracle} from '@link-credit/CreditOracle.sol';
+import {WorldIDRegistry} from '@link-credit/WorldIDRegistry.sol';
 import {CreditPoolInstance} from '@link-credit/instances/CreditPoolInstance.sol';
 import {IAaveOracle} from 'aave-v3-origin/src/contracts/interfaces/IAaveOracle.sol';
 
@@ -61,6 +62,7 @@ contract DeployCreditMarket is Script, DefaultMarketInput, FfiUtils {
     IAaveOracle(report.aaveOracle).setAssetSources(assets, sources);
 
     CreditOracle creditOracle = new CreditOracle(deployer);
+    WorldIDRegistry worldIdRegistry = new WorldIDRegistry(deployer);
     CreditPoolInstance creditPoolImplementation = new CreditPoolInstance(
       IPoolAddressesProvider(report.poolAddressesProvider),
       IReserveInterestRateStrategy(report.defaultInterestRateStrategy)
@@ -69,12 +71,15 @@ contract DeployCreditMarket is Script, DefaultMarketInput, FfiUtils {
     IPoolAddressesProvider(report.poolAddressesProvider).setPoolImpl(address(creditPoolImplementation));
     ICreditPool(report.poolProxy).setCreditOracle(address(creditOracle));
     creditOracle.setForwarder(0x15fC6ae953E024d975e77382eEeC56A9101f9F88);
+    worldIdRegistry.setForwarder(0x15fC6ae953E024d975e77382eEeC56A9101f9F88);
+    creditOracle.setWorldIdRegistry(address(worldIdRegistry));
 
     vm.stopBroadcast();
 
     // -- Link Credit custom contracts --
     string memory json = vm.serializeAddress('deployment', 'deployer', deployer);
     json = vm.serializeAddress('deployment', 'creditOracle', address(creditOracle));
+    json = vm.serializeAddress('deployment', 'worldIdRegistry', address(worldIdRegistry));
     json = vm.serializeAddress('deployment', 'creditPoolImplementation', address(creditPoolImplementation));
 
     // -- Aave v3 core --
