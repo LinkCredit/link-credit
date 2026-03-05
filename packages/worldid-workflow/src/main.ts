@@ -27,7 +27,7 @@ const configSchema = z.object({
   worldIdAppId: z.string().min(1),
   worldIdRpId: z.string().min(1),
   worldIdAction: z.string().min(1).default("credit-scoring"),
-  worldIdApiBaseUrl: z.string().url().default("https://developer.world.org/api/v4"),
+  worldIdApiBaseUrl: z.string().default("https://developer.worldcoin.org/api/v4"),
 });
 
 const verificationLevelSchema = z

@@ -158,26 +158,16 @@ export async function createLinkTokenHandler(c: ApiContext) {
   return c.json(parsed);
 }
 
-export async function triggerScoringHandler(c: ApiContext) {
-  const body = await parseBody(c);
-  if (!body) {
-    return c.json({ error: "Invalid JSON body" }, 400);
-  }
-
-  const parsed = parseTriggerScoringRequest(body);
-  if (!parsed.ok) {
-    return c.json({ error: parsed.error }, 400);
-  }
-
-  const signatureMatches = await verifyWalletSignature(parsed.value);
-  if (!signatureMatches) {
-    return c.json({ error: "Signature verification failed" }, 401);
-  }
-
-  const workflowId = readRuntimeEnv(c.env, "CRE_WORKFLOW_ID");
+async function triggerCreWorkflow(
+  c: ApiContext,
+  workflowIdEnvKey: string,
+  payload: TriggerGatewayPayload | TriggerWorldIdGatewayPayload,
+  errorPrefix: string,
+): Promise<Response> {
+  const workflowId = readRuntimeEnv(c.env, workflowIdEnvKey);
   const privateKey = readRuntimeEnv(c.env, "CRE_WORKER_PRIVATE_KEY");
   if (!workflowId || !privateKey) {
-    return c.json({ error: "CRE workflow configuration is missing" }, 500);
+    return c.json({ error: `${errorPrefix} workflow configuration is missing` }, 500);
   }
 
   const gatewayUrl =
@@ -186,24 +176,13 @@ export async function triggerScoringHandler(c: ApiContext) {
   const gatewayMethod =
     readRuntimeEnv(c.env, "CRE_WORKFLOW_METHOD") ?? "workflow_execute";
 
-  const triggerPayload: TriggerGatewayPayload = {
-    publicToken: parsed.value.publicToken,
-    walletAddress: getAddress(parsed.value.walletAddress),
-  };
-
-  // DO NOT DELETE - Debug log for manual workflow testing
-  // Copy this output to packages/workflow/payload.json for local debugging
-  console.log('=== TRIGGER PAYLOAD FOR WORKFLOW DEBUG ===');
-  console.log(JSON.stringify(triggerPayload, null, 2));
-  console.log('==========================================');
-
   const requestBody = {
     jsonrpc: "2.0",
     id: crypto.randomUUID(),
     method: gatewayMethod,
     params: {
       workflowId,
-      payload: triggerPayload,
+      payload,
     },
   };
 
@@ -227,7 +206,7 @@ export async function triggerScoringHandler(c: ApiContext) {
   if (!gatewayResponse.ok) {
     return c.json(
       {
-        error: "CRE gateway rejected trigger request",
+        error: `CRE gateway rejected ${errorPrefix} trigger request`,
         gatewayStatus: gatewayResponse.status,
         gatewayBody: safeParseJson(responseBody) ?? responseBody,
       },
@@ -237,9 +216,37 @@ export async function triggerScoringHandler(c: ApiContext) {
 
   return c.json({
     accepted: true,
-    walletAddress: triggerPayload.walletAddress,
+    walletAddress: (payload as { walletAddress: string }).walletAddress,
     gateway: safeParseJson(responseBody) ?? { raw: responseBody },
   });
+}
+
+export async function triggerScoringHandler(c: ApiContext) {
+  const body = await parseBody(c);
+  if (!body) {
+    return c.json({ error: "Invalid JSON body" }, 400);
+  }
+
+  const parsed = parseTriggerScoringRequest(body);
+  if (!parsed.ok) {
+    return c.json({ error: parsed.error }, 400);
+  }
+
+  const signatureMatches = await verifyWalletSignature(parsed.value);
+  if (!signatureMatches) {
+    return c.json({ error: "Signature verification failed" }, 401);
+  }
+
+  const triggerPayload: TriggerGatewayPayload = {
+    publicToken: parsed.value.publicToken,
+    walletAddress: getAddress(parsed.value.walletAddress),
+  };
+
+  console.log('=== TRIGGER PAYLOAD FOR WORKFLOW DEBUG ===');
+  console.log(JSON.stringify(triggerPayload, null, 2));
+  console.log('==========================================');
+
+  return triggerCreWorkflow(c, "CRE_WORKFLOW_ID", triggerPayload, "CRE");
 }
 
 export async function triggerWorldIdHandler(c: ApiContext) {
@@ -258,18 +265,6 @@ export async function triggerWorldIdHandler(c: ApiContext) {
     return c.json({ error: "Signature verification failed" }, 401);
   }
 
-  const workflowId = readRuntimeEnv(c.env, "CRE_WORLDID_WORKFLOW_ID");
-  const privateKey = readRuntimeEnv(c.env, "CRE_WORKER_PRIVATE_KEY");
-  if (!workflowId || !privateKey) {
-    return c.json({ error: "World ID CRE workflow configuration is missing" }, 500);
-  }
-
-  const gatewayUrl =
-    readRuntimeEnv(c.env, "CRE_GATEWAY_URL") ??
-    "https://gateway.chain.link/v1/workflows/execute";
-  const gatewayMethod =
-    readRuntimeEnv(c.env, "CRE_WORKFLOW_METHOD") ?? "workflow_execute";
-
   const normalizedWallet = normalizeAddress(parsed.value.walletAddress);
   if (!normalizedWallet) {
     return c.json({ error: "Invalid walletAddress" }, 400);
@@ -283,55 +278,7 @@ export async function triggerWorldIdHandler(c: ApiContext) {
     walletAddress: normalizedWallet,
   };
 
-  // DO NOT DELETE - Debug log for manual workflow testing
-  // Copy this output to packages/worldid-workflow/payload.json for local debugging
-  console.log('=== WORLDID TRIGGER PAYLOAD FOR WORKFLOW DEBUG ===');
-  console.log(JSON.stringify(triggerPayload, null, 2));
-  console.log('===================================================');
-
-  const requestBody = {
-    jsonrpc: "2.0",
-    id: crypto.randomUUID(),
-    method: gatewayMethod,
-    params: {
-      workflowId,
-      payload: triggerPayload,
-    },
-  };
-
-  const bodyText = JSON.stringify(requestBody);
-  const jwt = createCreJwt({
-    workflowId,
-    privateKey,
-    bodyText,
-  });
-
-  const gatewayResponse = await fetch(gatewayUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${jwt}`,
-    },
-    body: bodyText,
-  });
-
-  const responseBody = await gatewayResponse.text();
-  if (!gatewayResponse.ok) {
-    return c.json(
-      {
-        error: "CRE gateway rejected World ID trigger request",
-        gatewayStatus: gatewayResponse.status,
-        gatewayBody: safeParseJson(responseBody) ?? responseBody,
-      },
-      502,
-    );
-  }
-
-  return c.json({
-    accepted: true,
-    walletAddress: triggerPayload.walletAddress,
-    gateway: safeParseJson(responseBody) ?? { raw: responseBody },
-  });
+  return triggerCreWorkflow(c, "CRE_WORLDID_WORKFLOW_ID", triggerPayload, "World ID CRE");
 }
 
 export async function accessTokenHandler(c: ApiContext) {

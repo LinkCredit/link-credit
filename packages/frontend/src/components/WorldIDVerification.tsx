@@ -83,16 +83,14 @@ export function WorldIDVerification(): React.JSX.Element {
         throw new Error("Connect wallet first.");
       }
 
-      // Extract data from the first response item
       const response = proof.responses[0];
       if (!response) {
         throw new Error("No proof response received.");
       }
 
-      // Handle both V3 and V4 formats
       const isV3 = proof.protocol_version === "3.0";
       const merkleRoot = isV3 ? (response as any).merkle_root : "0x0";
-      const nullifierHash = isV3 ? (response as any).nullifier : (response as any).nullifier;
+      const nullifierHash = (response as any).nullifier;
       const verificationLevel = isV3 ? "orb" : response.identifier;
 
       const message = createWorldIdOwnershipMessage({
@@ -103,15 +101,23 @@ export function WorldIDVerification(): React.JSX.Element {
       });
       const signature = await signMessageAsync({ message });
 
+      const workflowPayload = {
+        proof: (response as any).proof,
+        merkle_root: merkleRoot,
+        nullifier_hash: nullifierHash,
+        verification_level: verificationLevel,
+        walletAddress: address
+      };
+
+      console.log('=== WORLDID TRIGGER PAYLOAD FOR WORKFLOW DEBUG ===');
+      console.log(JSON.stringify(workflowPayload, null, 2));
+      console.log('===================================================');
+
       const apiResponse = await fetch(`${apiBaseUrl}/trigger-worldid`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          proof: isV3 ? (response as any).proof : (response as any).proof,
-          merkle_root: merkleRoot,
-          nullifier_hash: nullifierHash,
-          verification_level: verificationLevel,
-          walletAddress: address,
+          ...workflowPayload,
           signature,
         }),
       });
@@ -145,36 +151,29 @@ export function WorldIDVerification(): React.JSX.Element {
     setIsWaitingForScan(true);
 
     try {
-      // 1. Create v4 device request with device credential constraint
       const deviceConstraint: CredentialRequestType = {
         type: "device"
       };
-
-      console.log("worldcoinAppId:",worldcoinAppId)
 
       const request = await IDKit.request({
         app_id: worldcoinAppId,
         action: ACTION,
         rp_context: rpContext,
-        allow_legacy_proofs: false,  // v4 only
+        allow_legacy_proofs: false,
         environment: "staging"
       }).constraints(deviceConstraint);
 
-      // 2. Get connector URI (property, not method) and generate QR code
       const uri = request.connectorURI;
       setConnectorURI(uri);
       const qrDataUrl = await QRCode.toDataURL(uri);
       setQrCodeUrl(qrDataUrl);
 
-      // 3. Wait for user to scan and complete verification
       const completionResult: IDKitCompletionResult = await request.pollUntilCompletion();
 
-      // 4. Check if verification was successful
       if (!completionResult.success) {
         throw new Error(`Verification failed: ${completionResult.error}`);
       }
 
-      // 5. Process the result using existing verification logic
       setIsWaitingForScan(false);
       await handleVerify(completionResult.result);
     } catch (err) {
@@ -204,19 +203,15 @@ export function WorldIDVerification(): React.JSX.Element {
     }
   };
 
-  // Only initialize the flow if we have all required data
   const canInitializeFlow = worldcoinAppId && rpContext && address;
 
-  return (
-    <section className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 shadow-2xl shadow-cyan-900/20">
-      <h2 className="text-xl font-semibold text-white">World ID (optional)</h2>
-      <p className="mt-1 text-sm text-slate-300">
-        Verify unique humanness for an extra +10% on your LTV boost.
-      </p>
+  function renderContent() {
+    if (!isConnected || !address) {
+      return <p className="mt-4 text-sm text-amber-200">Connect wallet to verify with World ID.</p>;
+    }
 
-      {!isConnected || !address ? (
-        <p className="mt-4 text-sm text-amber-200">Connect wallet to verify with World ID.</p>
-      ) : !worldcoinAppId ? (
+    if (!worldcoinAppId) {
+      return (
         <p className="mt-4 text-sm text-amber-200">
           Set
           <span className="mx-1 rounded bg-black/40 px-1.5 py-0.5 font-mono text-xs">
@@ -224,11 +219,19 @@ export function WorldIDVerification(): React.JSX.Element {
           </span>
           to enable verification.
         </p>
-      ) : isVerified ? (
+      );
+    }
+
+    if (isVerified) {
+      return (
         <p className="mt-4 text-sm font-medium text-emerald-300">
           ✓ Verified. Your World ID bonus will apply to LTV boost.
         </p>
-      ) : qrCodeUrl ? (
+      );
+    }
+
+    if (qrCodeUrl) {
+      return (
         <div className="mt-4 space-y-4">
           <button
             type="button"
@@ -272,18 +275,31 @@ export function WorldIDVerification(): React.JSX.Element {
             Cancel
           </button>
         </div>
-      ) : (
-        <div className="mt-4">
-          <button
-            type="button"
-            onClick={startVerification}
-            disabled={isVerifying || isWaitingForScan || !canInitializeFlow}
-            className="rounded-xl bg-emerald-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {isVerifying ? "Submitting..." : !rpContext ? "Loading..." : "Verify with World ID"}
-          </button>
-        </div>
-      )}
+      );
+    }
+
+    return (
+      <div className="mt-4">
+        <button
+          type="button"
+          onClick={startVerification}
+          disabled={isVerifying || isWaitingForScan || !canInitializeFlow}
+          className="rounded-xl bg-emerald-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isVerifying ? "Submitting..." : !rpContext ? "Loading..." : "Verify with World ID"}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <section className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 shadow-2xl shadow-cyan-900/20">
+      <h2 className="text-xl font-semibold text-white">World ID (optional)</h2>
+      <p className="mt-1 text-sm text-slate-300">
+        Verify unique humanness for an extra +10% on your LTV boost.
+      </p>
+
+      {renderContent()}
 
       {error ? <p className="mt-4 text-sm text-rose-300">{error}</p> : null}
     </section>

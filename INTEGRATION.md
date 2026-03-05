@@ -139,11 +139,11 @@ This will:
 
 Similar to the main workflow, WorldID verification can be tested locally using `cre workflow simulate`.
 
-### 6a) Capture the WorldID payload from the API server
+### 6a) Capture the WorldID payload from the browser console
 
 1. Open the frontend (dev servers must be running).
 2. Connect wallet and complete the World ID verification flow.
-3. After the wallet signature, check the **API server console** — the payload will be logged:
+3. After the wallet signature, check the **browser console** (DevTools - press F12 or Cmd+Option+I) — the payload will be logged:
    ```
    === WORLDID TRIGGER PAYLOAD FOR WORKFLOW DEBUG ===
    {
@@ -155,7 +155,7 @@ Similar to the main workflow, WorldID verification can be tested locally using `
    }
    ===================================================
    ```
-4. Copy the JSON and save it to `packages/worldid-workflow/payload.json`.
+4. Copy the JSON (between the markers) and save it to `packages/worldid-workflow/payload.json`.
 
 ### 6b) Simulate with broadcast
 

@@ -4,5 +4,5 @@
   "worldIdAppId": "app_staging_9fc16d3c661e3b1598e4343e1a4925b1",
   "worldIdRpId": "rp_dbc8676f05e9ede1",
   "worldIdAction": "credit-scoring",
-  "worldIdApiBaseUrl": "https://developer.world.org/api/v4"
+  "worldIdApiBaseUrl": "https://developer.worldcoin.org/api/v4"
 }
