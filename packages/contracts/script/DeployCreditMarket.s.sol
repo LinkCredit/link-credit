@@ -8,7 +8,7 @@ import {DefaultMarketInput} from 'aave-v3-origin/src/deployments/inputs/DefaultM
 import {AaveV3BatchOrchestration} from 'aave-v3-origin/src/deployments/projects/aave-v3-batched/AaveV3BatchOrchestration.sol';
 import {MarketReport, Roles, MarketConfig, DeployFlags} from 'aave-v3-origin/src/deployments/interfaces/IMarketReportTypes.sol';
 import {WETH9} from 'aave-v3-origin/src/contracts/dependencies/weth/WETH9.sol';
-import {AaveV3TestListing} from 'aave-v3-origin/tests/mocks/AaveV3TestListing.sol';
+import {CreditMarketListing} from '@link-credit/CreditMarketListing.sol';
 import {IAaveV3ConfigEngine} from 'aave-v3-origin/src/contracts/extensions/v3-config-engine/AaveV3ConfigEngine.sol';
 import {ACLManager} from 'aave-v3-origin/src/contracts/protocol/configuration/ACLManager.sol';
 import {IPoolAddressesProvider} from 'aave-v3-origin/src/contracts/interfaces/IPoolAddressesProvider.sol';
@@ -21,7 +21,11 @@ import {CreditPoolInstance} from '@link-credit/instances/CreditPoolInstance.sol'
 import {IAaveOracle} from 'aave-v3-origin/src/contracts/interfaces/IAaveOracle.sol';
 
 contract DeployCreditMarket is Script, DefaultMarketInput, FfiUtils {
-  function run() external {
+  function run() external virtual {
+    _run(_deploymentOutputPath());
+  }
+
+  function _run(string memory outputPath) internal {
     _detectFoundryLibrariesAndDelete();
 
     Roles memory roles;
@@ -39,7 +43,7 @@ contract DeployCreditMarket is Script, DefaultMarketInput, FfiUtils {
 
     report = AaveV3BatchOrchestration.deployAaveV3(deployer, roles, config, flags, report);
 
-    AaveV3TestListing listing = new AaveV3TestListing(
+    CreditMarketListing listing = new CreditMarketListing(
       IAaveV3ConfigEngine(report.configEngine),
       roles.poolAdmin,
       weth,
@@ -48,6 +52,7 @@ contract DeployCreditMarket is Script, DefaultMarketInput, FfiUtils {
 
     ACLManager(report.aclManager).addPoolAdmin(address(listing));
     listing.execute();
+    ACLManager(report.aclManager).removePoolAdmin(address(listing));
 
     // Update price feeds to use Chainlink
     address[] memory assets = new address[](2);
@@ -104,7 +109,11 @@ contract DeployCreditMarket is Script, DefaultMarketInput, FfiUtils {
     json = vm.serializeAddress('deployment', 'wbtcPriceFeed', 0x1b44F3514812d835EB1BDB0acB33d3fA3351Ee43);
     json = vm.serializeAddress('deployment', 'usdxPriceFeed', listing.USDX_MOCK_PRICE_FEED());
 
-    vm.writeJson(json, 'deployed-addresses.json');
+    vm.writeJson(json, outputPath);
+  }
+
+  function _deploymentOutputPath() internal view virtual returns (string memory) {
+    return vm.envOr('DEPLOYED_ADDRESSES_FILE', string('deployed-addresses.json'));
   }
 
   function _detectFoundryLibrariesAndDelete() internal {

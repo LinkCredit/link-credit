@@ -27,19 +27,26 @@ const configSchema = z.object({
   worldIdAppId: z.string().min(1),
   worldIdRpId: z.string().min(1),
   worldIdAction: z.string().min(1).default("credit-scoring"),
-  worldIdApiBaseUrl: z.string().default("https://developer.worldcoin.org/api/v4"),
+  worldIdApiBaseUrl: z.string().default("https://developer.world.org/api/v4"),
 });
 
-const verificationLevelSchema = z
-  .string()
-  .transform((value) => value.trim().toLowerCase())
-  .pipe(z.enum(["device", "orb"]));
+const worldIdResponseSchema = z
+  .object({
+    nullifier: z.string().regex(/^0x[a-fA-F0-9]{64}$/),
+    identifier: z.string().optional(),
+    verification_level: z.string().optional(),
+  })
+  .passthrough();
+
+const worldIdProofSchema = z
+  .object({
+    protocol_version: z.enum(["3.0", "4.0"]),
+    responses: z.array(worldIdResponseSchema).min(1),
+  })
+  .passthrough();
 
 const httpInputSchema = z.object({
-  proof: z.string().min(1),
-  merkle_root: z.string().min(1),
-  nullifier_hash: z.string().regex(/^0x[a-fA-F0-9]{64}$/),
-  verification_level: verificationLevelSchema,
+  worldIdProof: worldIdProofSchema,
   walletAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
 });
 
@@ -69,10 +76,6 @@ export const initWorkflow = (rawConfig: Config) => {
 
     writeVerificationOnChain(runtime, config, input, verified);
 
-    runtime.log(
-      `[worldid] verification complete wallet=${input.walletAddress} verified=${verified}`,
-    );
-
     return "ok";
   };
 
@@ -94,29 +97,28 @@ function verifyWorldIdProof(
   config: Config,
   input: TriggerPayload,
 ): boolean {
+  const verifyUrl = `${trimTrailingSlash(config.worldIdApiBaseUrl)}/verify/${config.worldIdRpId}`;
+
+  const verifyPayload = input.worldIdProof;
+
   const response = sendRequester
     .sendRequest({
-      url: `${trimTrailingSlash(config.worldIdApiBaseUrl)}/verify/${config.worldIdRpId}`,
+      url: verifyUrl,
       method: "POST",
       headers: {
         "content-type": "application/json",
       },
-      body: jsonBody({
-        proof: input.proof,
-        merkle_root: input.merkle_root,
-        nullifier_hash: input.nullifier_hash,
-        verification_level: input.verification_level,
-        action: config.worldIdAction,
-        signal: input.walletAddress,
-      }),
+      body: jsonBody(verifyPayload),
     })
     .result();
+
+  const body = decodeBody(response);
 
   if (!responseOk(response)) {
     return false;
   }
 
-  const parsed = safeJsonParse(decodeBody(response));
+  const parsed = safeJsonParse(body);
   if (!parsed || typeof parsed !== "object") {
     return false;
   }
@@ -141,7 +143,12 @@ function writeVerificationOnChain(
   }
 
   const evmClient = new EVMClient(network.chainSelector.selector);
-  const verificationLevel = input.verification_level === "orb" ? 1 : 0;
+  const primaryResponse = input.worldIdProof.responses[0];
+  const verificationLevel = normalizeVerificationLevel(
+    primaryResponse.identifier ?? primaryResponse.verification_level,
+  ) === "orb"
+    ? 1
+    : 0;
 
   const reportPayload = encodeAbiParameters(
     parseAbiParameters("address user, bool verified, uint256 level, bytes32 nullifier"),
@@ -149,7 +156,7 @@ function writeVerificationOnChain(
       input.walletAddress as Address,
       verified,
       BigInt(verificationLevel),
-      input.nullifier_hash as `0x${string}`,
+      primaryResponse.nullifier as `0x${string}`,
     ],
   );
 
@@ -184,4 +191,8 @@ function safeJsonParse(raw: string): unknown {
   } catch {
     return null;
   }
+}
+
+function normalizeVerificationLevel(value?: string): "device" | "orb" {
+  return value?.trim().toLowerCase() === "orb" ? "orb" : "device";
 }

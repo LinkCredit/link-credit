@@ -6,6 +6,13 @@ staging-settings:
     workflow-path: "./src/main.ts"
     config-path: "./config.staging.json"
 # ==========================================================================
+fork-settings:
+  user-workflow:
+    workflow-name: "link-credit-worldid-fork"
+  workflow-artifacts:
+    workflow-path: "./src/main.ts"
+    config-path: "./config.staging.json"
+# ==========================================================================
 production-settings:
   user-workflow:
     workflow-name: "link-credit-worldid-production"

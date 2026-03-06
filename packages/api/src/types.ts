@@ -40,23 +40,27 @@ export interface TriggerGatewayPayload {
   walletAddress: string;
 }
 
+export interface WorldIdProofResponse {
+  nullifier: string;
+  identifier?: string;
+  verification_level?: string;
+  [key: string]: unknown;
+}
+
+export interface WorldIdProofPayload {
+  protocol_version: string;
+  responses: WorldIdProofResponse[];
+  [key: string]: unknown;
+}
+
 export interface TriggerWorldIdRequest {
-  proof: string;
-  merkle_root: string;
-  nullifier_hash: string;
-  verification_level: string;
-  protocol_version?: string;
-  nonce?: string;
-  action?: string;
+  worldIdProof: WorldIdProofPayload;
   walletAddress: string;
   signature: string;
 }
 
 export interface TriggerWorldIdGatewayPayload {
-  proof: string;
-  merkle_root: string;
-  nullifier_hash: string;
-  verification_level: string;
+  worldIdProof: WorldIdProofPayload;
   walletAddress: string;
 }
 

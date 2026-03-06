@@ -1,15 +1,28 @@
 import { type Address } from "viem";
 import { useReadContract } from "wagmi";
 import { poolAbi } from "../config/abi";
-import { ZERO_ADDRESS, addresses, isDeployed } from "../config/addresses";
+import {
+  ZERO_ADDRESS,
+  useDeployedAddresses,
+  useIsDeployed,
+} from "../config/addresses";
 
+// Aave v3 uses 8 decimals for base currency (USD)
+// But the actual value returned includes asset decimals
+// For proper conversion, we need to divide by 1e8 (price decimals) + asset decimals
+// Since most assets use 8 decimals (WBTC) or 18 decimals (WETH),
+// and prices are in 8 decimals, the total is typically 16 decimals for WBTC
 const BASE_CURRENCY_DECIMALS = 1e8;
 
 function toBase(value: bigint): number {
+  // Aave returns values in base currency with 8 decimals
+  // But for display, we need to account for the actual decimals used
   return Number(value) / BASE_CURRENCY_DECIMALS;
 }
 
 export function useAccountData(userAddress?: Address) {
+  const addresses = useDeployedAddresses();
+  const isDeployed = useIsDeployed();
   const target = userAddress ?? ZERO_ADDRESS;
   const enabled = Boolean(userAddress) && isDeployed;
 

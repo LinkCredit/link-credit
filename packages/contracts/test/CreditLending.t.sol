@@ -10,7 +10,7 @@ import {CreditPoolInstance} from '@link-credit/instances/CreditPoolInstance.sol'
 
 contract CreditLendingTest is TestnetProcedures {
   uint256 internal constant BASE_LTV = 5_000;
-  uint256 internal constant LIQ_THRESHOLD = 7_500;
+  uint256 internal constant LIQ_THRESHOLD = 7_600; // 76% allows max LTV of 75%
   uint256 internal constant LIQ_BONUS = 10_500;
 
   CreditOracle internal creditOracle;

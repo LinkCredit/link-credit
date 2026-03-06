@@ -29,16 +29,12 @@ export function createWalletOwnershipMessage(
 
 export function createWorldIdOwnershipMessage(input: {
   walletAddress: string;
-  merkleRoot: string;
   nullifierHash: string;
-  verificationLevel: string;
 }): string {
   return [
     "Link Credit World ID authorization",
     `walletAddress:${input.walletAddress}`,
-    `merkleRoot:${input.merkleRoot}`,
     `nullifierHash:${input.nullifierHash}`,
-    `verificationLevel:${input.verificationLevel}`,
   ].join("\n");
 }
 
@@ -89,19 +85,19 @@ export async function verifyWorldIdSignature(
   if (!normalizedWallet) {
     return false;
   }
+  const firstResponse = payload.worldIdProof.responses[0];
+  if (!firstResponse?.nullifier) {
+    return false;
+  }
 
   const candidates = [
     createWorldIdOwnershipMessage({
       walletAddress: payload.walletAddress,
-      merkleRoot: payload.merkle_root,
-      nullifierHash: payload.nullifier_hash,
-      verificationLevel: payload.verification_level,
+      nullifierHash: firstResponse.nullifier,
     }),
     createWorldIdOwnershipMessage({
       walletAddress: normalizedWallet,
-      merkleRoot: payload.merkle_root,
-      nullifierHash: payload.nullifier_hash,
-      verificationLevel: payload.verification_level,
+      nullifierHash: firstResponse.nullifier,
     }),
   ];
 

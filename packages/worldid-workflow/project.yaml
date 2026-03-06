@@ -3,6 +3,11 @@ staging-settings:
     - chain-name: ethereum-testnet-sepolia
       url: https://ethereum-sepolia-rpc.publicnode.com
 
+fork-settings:
+  rpcs:
+    - chain-name: ethereum-testnet-sepolia
+      url: ${TENDERLY_FORK_RPC_URL}
+
 production-settings:
   rpcs:
     - chain-name: ethereum-testnet-sepolia

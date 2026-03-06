@@ -1,8 +1,8 @@
 {
   "chainSelectorName": "ethereum-testnet-sepolia",
-  "registryContractAddress": "0x0000000000000000000000000000000000000000",
+  "registryContractAddress": "0xB3A16439983b766b3Ef11CD1De615B4cA53d6f5C",
   "worldIdAppId": "app_staging_9fc16d3c661e3b1598e4343e1a4925b1",
   "worldIdRpId": "rp_dbc8676f05e9ede1",
   "worldIdAction": "credit-scoring",
-  "worldIdApiBaseUrl": "https://developer.worldcoin.org/api/v4"
+  "worldIdApiBaseUrl": "https://developer.world.org/api/v4"
 }

@@ -1,9 +1,30 @@
 /**
  * Syncs deployed contract addresses from packages/contracts/deployed-addresses.json
- * into workflow config files (config.staging.json, config.production.json).
+ * into workflow config files.
  */
 
-const addresses = await Bun.file("packages/contracts/deployed-addresses.json").json();
+type AddressBook = {
+  creditOracle?: string;
+  worldIdRegistry?: string;
+};
+
+async function updateConfigValue(
+  configPath: string,
+  key: string,
+  value: string | undefined
+) {
+  if (!value) {
+    return;
+  }
+
+  const config = await Bun.file(configPath).json();
+  config[key] = value;
+  await Bun.write(configPath, JSON.stringify(config, null, 2) + "\n");
+}
+
+const sepoliaAddresses = (await Bun.file(
+  "packages/contracts/deployed-addresses.json"
+).json()) as AddressBook;
 
 const workflowConfigs = [
   "packages/workflow/config.staging.json",
@@ -17,17 +38,21 @@ const worldidWorkflowConfigs = [
 
 // Sync creditOracle to workflow configs
 for (const configPath of workflowConfigs) {
-  const config = await Bun.file(configPath).json();
-  config.oracleContractAddress = addresses.creditOracle;
-  await Bun.write(configPath, JSON.stringify(config, null, 2) + "\n");
+  await updateConfigValue(
+    configPath,
+    "oracleContractAddress",
+    sepoliaAddresses.creditOracle
+  );
 }
 
 // Sync worldIdRegistry to worldid-workflow configs
 for (const configPath of worldidWorkflowConfigs) {
-  const config = await Bun.file(configPath).json();
-  config.registryContractAddress = addresses.worldIdRegistry;
-  await Bun.write(configPath, JSON.stringify(config, null, 2) + "\n");
+  await updateConfigValue(
+    configPath,
+    "registryContractAddress",
+    sepoliaAddresses.worldIdRegistry
+  );
 }
 
-console.log(`Synced oracleContractAddress → ${addresses.creditOracle}`);
-console.log(`Synced registryContractAddress → ${addresses.worldIdRegistry}`);
+console.log(`Synced oracleContractAddress → ${sepoliaAddresses.creditOracle || "missing"}`);
+console.log(`Synced registryContractAddress → ${sepoliaAddresses.worldIdRegistry || "missing"}`);

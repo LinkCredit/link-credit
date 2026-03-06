@@ -13,14 +13,15 @@ L3: React DApp (frontend) — wallet connect, Plaid Link auth, view score, borro
 L2: CRE Workflow (TypeScript) — token exchange + Confidential HTTP (Plaid data) → AI scoring → on-chain write
 L1.5: Serverless Function — Plaid Link token creation only (Cloudflare Worker)
 L1: Solidity Contracts (Sepolia) — CreditOracle.sol + Fork Aave v3 (modified GenericLogic)
+Testing: Tenderly Fork (Sepolia mirror RPC, same chain id/address set)
 ```
 
 ## Tech Stack
 
-- **Contracts**: Solidity, Foundry (Sepolia testnet), Fork of `aave-dao/aave-v3-origin` (v3.6)
+- **Contracts**: Solidity, Foundry (deploy on Sepolia), Fork of `aave-dao/aave-v3-origin` (v3.6)
 - **CRE Workflow**: TypeScript, `@chainlink/cre-sdk`, compiled to WASM
 - **Serverless**: Cloudflare Worker (Plaid Link token creation only, ~10 lines)
-- **Frontend**: React + wagmi/viem + TailwindCSS
+- **Frontend**: React + wagmi/viem + TailwindCSS (optional Tenderly fork RPC)
 - **Package manager**: bun (preferred), pnpm as fallback
 
 ## Key CRE SDK Constraints
@@ -51,6 +52,7 @@ git submodule update --init --recursive
 
 # Run dev servers
 bun run dev:frontend   # React DApp
+bun run dev:fork       # API + frontend using Tenderly Sepolia fork
 
 # Build all
 bun run build

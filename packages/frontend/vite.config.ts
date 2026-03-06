@@ -15,10 +15,4 @@ export default defineConfig({
     exclude: ["@worldcoin/idkit-core"],
     include: ["qrcode"],
   },
-  server: {
-    headers: {
-      "Cross-Origin-Opener-Policy": "same-origin",
-      "Cross-Origin-Embedder-Policy": "require-corp",
-    },
-  },
 });

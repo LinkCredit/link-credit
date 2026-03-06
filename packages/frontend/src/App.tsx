@@ -2,9 +2,11 @@ import { CreditScorePanel } from "./components/CreditScorePanel";
 import { Header } from "./components/Header";
 import { LendingPanel } from "./components/LendingPanel";
 import { WorldIDVerification } from "./components/WorldIDVerification";
-import { isDeployed } from "./config/addresses";
+import { useIsDeployed } from "./config/addresses";
 
 export default function App() {
+  const isDeployed = useIsDeployed();
+
   return (
     <div className="min-h-screen text-slate-100">
       <Header />

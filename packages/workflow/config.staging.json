@@ -1,6 +1,6 @@
 {
   "chainSelectorName": "ethereum-testnet-sepolia",
-  "oracleContractAddress": "0xDe2b945A97F172d66DAeC39AcF348f0A8A7AF815",
+  "oracleContractAddress": "0x0B955e39E469E4B70940e5642bd82665EC3296Ca",
   "workerBaseUrl": "http://localhost:3001",
   "plaidBaseUrl": "https://sandbox.plaid.com",
   "openAiBaseUrl": "https://api.aigocode.com",

@@ -3,7 +3,43 @@ import { usePlaidLink as usePlaidWidget } from "react-plaid-link";
 import { type Address } from "viem";
 import { apiBaseUrl } from "../config/addresses";
 
+type PlaidEvaluateResponse = {
+  accepted: boolean;
+  message?: string;
+};
+
 type SignMessageAsync = (variables: { message: string }) => Promise<string>;
+
+function getOAuthRedirectUri(): string | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const query = new URLSearchParams(window.location.search);
+  if (!query.get("oauth_state_id")) {
+    return null;
+  }
+
+  return window.location.href;
+}
+
+function cleanOAuthParams(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has("oauth_state_id")) {
+    return;
+  }
+
+  url.searchParams.delete("oauth_state_id");
+  url.searchParams.delete("oauth_state");
+
+  const query = url.searchParams.toString();
+  const next = `${url.pathname}${query ? `?${query}` : ""}${url.hash}`;
+  window.history.replaceState(window.history.state, "", next);
+}
 
 function formatError(error: unknown): string {
   if (error instanceof Error) {
@@ -32,10 +68,21 @@ export function usePlaidLink(
   const [openQueued, setOpenQueued] = useState(false);
   const [isPreparing, setIsPreparing] = useState(false);
   const [isEvaluating, setIsEvaluating] = useState(false);
+  const [hasAttemptedOAuthResume, setHasAttemptedOAuthResume] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastEvaluation, setLastEvaluation] =
+    useState<PlaidEvaluateResponse | null>(null);
+  const [receivedRedirectUri, setReceivedRedirectUri] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     setLinkToken(null);
+    setLastEvaluation(null);
+
+    const redirectUri = getOAuthRedirectUri();
+    setReceivedRedirectUri(redirectUri);
+    setHasAttemptedOAuthResume(!redirectUri);
   }, [walletAddress]);
 
   const runEvaluation = useCallback(
@@ -54,13 +101,20 @@ export function usePlaidLink(
 
         const message = createWalletOwnershipMessage(publicToken, walletAddress);
         const signature = await signMessageAsync({ message });
+        const workflowPayload = {
+          publicToken,
+          walletAddress,
+        };
+
+        console.log("=== TRIGGER PAYLOAD FOR WORKFLOW DEBUG ===");
+        console.log(JSON.stringify(workflowPayload, null, 2));
+        console.log("==========================================");
 
         const response = await fetch(`${apiBaseUrl}/trigger-scoring`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            publicToken,
-            walletAddress,
+            ...workflowPayload,
             signature,
           }),
         });
@@ -70,10 +124,11 @@ export function usePlaidLink(
           throw new Error(text || "Credit evaluation request failed.");
         }
 
-        const payload = (await response.json()) as { accepted?: boolean; message?: string };
+        const payload = (await response.json()) as PlaidEvaluateResponse;
         if (!payload.accepted) {
           throw new Error(payload.message || "Scoring request was not accepted.");
         }
+        setLastEvaluation(payload);
         onEvaluated?.();
       } catch (evaluationError) {
         setError(formatError(evaluationError));
@@ -86,7 +141,11 @@ export function usePlaidLink(
 
   const { open, ready } = usePlaidWidget({
     token: linkToken,
+    receivedRedirectUri: receivedRedirectUri ?? undefined,
     onSuccess: (publicToken) => {
+      cleanOAuthParams();
+      setReceivedRedirectUri(null);
+      setHasAttemptedOAuthResume(true);
       void runEvaluation(publicToken);
     },
     onExit: (plaidError) => {
@@ -104,10 +163,18 @@ export function usePlaidLink(
       throw new Error("Connect wallet first.");
     }
 
+    // Use current origin as redirect URI for OAuth flow
+    const redirectUri = typeof window !== "undefined"
+      ? `${window.location.origin}${window.location.pathname}`
+      : undefined;
+
     const response = await fetch(`${apiBaseUrl}/plaid/link-token`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ walletAddress }),
+      body: JSON.stringify({
+        walletAddress,
+        redirectUri,
+      }),
     });
 
     if (!response.ok) {
@@ -156,11 +223,37 @@ export function usePlaidLink(
     setOpenQueued(false);
   }, [openQueued, open, ready]);
 
+  useEffect(() => {
+    if (!receivedRedirectUri || !walletAddress || hasAttemptedOAuthResume) {
+      return;
+    }
+
+    setHasAttemptedOAuthResume(true);
+    setOpenQueued(true);
+    setError(null);
+    setIsPreparing(true);
+
+    void fetchLinkToken()
+      .catch((resumeError) => {
+        setOpenQueued(false);
+        setError(formatError(resumeError));
+      })
+      .finally(() => {
+        setIsPreparing(false);
+      });
+  }, [
+    fetchLinkToken,
+    hasAttemptedOAuthResume,
+    receivedRedirectUri,
+    walletAddress,
+  ]);
+
   return {
     launch,
     isPreparing,
     isEvaluating,
     ready,
     error,
+    lastEvaluation,
   };
 }

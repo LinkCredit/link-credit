@@ -1,11 +1,18 @@
 import { getDefaultConfig } from "connectkit";
 import { createConfig, http } from "wagmi";
-import { localhost, sepolia } from "wagmi/chains";
+import { sepolia } from "wagmi/chains";
 import { chainId, walletConnectProjectId } from "./addresses";
+import { createTenderlySepoliaFork } from "./chains/tenderly";
 
-const chains = [localhost, sepolia] as const;
+const tenderlyForkRpcUrl = import.meta.env.VITE_TENDERLY_FORK_RPC_URL;
+const sepoliaLikeChain = tenderlyForkRpcUrl
+  ? createTenderlySepoliaFork(tenderlyForkRpcUrl)
+  : sepolia;
+const chains = [sepoliaLikeChain] as const;
 
-export const activeChain = chainId === localhost.id ? localhost : sepolia;
+const chainById = new Map(chains.map((configuredChain) => [configuredChain.id, configuredChain]));
+
+export const activeChain = chainById.get(chainId) ?? sepolia;
 
 export const wagmiConfig = createConfig(
   getDefaultConfig({
@@ -16,8 +23,9 @@ export const wagmiConfig = createConfig(
     enableFamily: false,
     chains,
     transports: {
-      [localhost.id]: http("http://127.0.0.1:8545"),
-      [sepolia.id]: http(),
+      [sepoliaLikeChain.id]: tenderlyForkRpcUrl
+        ? http(tenderlyForkRpcUrl)
+        : http(),
     },
     ssr: false,
   })

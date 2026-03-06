@@ -2,7 +2,7 @@ import { useCallback, useState } from "react";
 import { parseUnits, type Address, type Hash } from "viem";
 import { useAccount, usePublicClient, useWriteContract } from "wagmi";
 import { erc20Abi, poolAbi } from "../config/abi";
-import { addresses, isDeployed } from "../config/addresses";
+import { useDeployedAddresses, useIsDeployed } from "../config/addresses";
 
 const INTEREST_RATE_MODE_VARIABLE = 2n;
 
@@ -17,6 +17,8 @@ export function useLending() {
   const { address } = useAccount();
   const publicClient = usePublicClient();
   const { writeContractAsync, isPending } = useWriteContract();
+  const addresses = useDeployedAddresses();
+  const isDeployed = useIsDeployed();
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastTxHash, setLastTxHash] = useState<Hash | null>(null);
@@ -82,7 +84,7 @@ export function useLending() {
       setLastTxHash(approveHash);
       await waitForReceipt(approveHash);
     },
-    [address, publicClient, waitForReceipt, writeContractAsync]
+    [address, addresses.pool, publicClient, waitForReceipt, writeContractAsync]
   );
 
   const supply = useCallback(
@@ -116,7 +118,15 @@ export function useLending() {
         setPendingAction(null);
       }
     },
-    [address, ensureAllowance, resolveAmount, waitForReceipt, writeContractAsync]
+    [
+      address,
+      addresses.pool,
+      ensureAllowance,
+      isDeployed,
+      resolveAmount,
+      waitForReceipt,
+      writeContractAsync,
+    ]
   );
 
   const borrow = useCallback(
@@ -148,12 +158,88 @@ export function useLending() {
         setPendingAction(null);
       }
     },
-    [address, resolveAmount, waitForReceipt, writeContractAsync]
+    [address, addresses.pool, isDeployed, resolveAmount, waitForReceipt, writeContractAsync]
+  );
+
+  const withdraw = useCallback(
+    async (asset: Address, rawAmount: string) => {
+      setError(null);
+      if (!address) {
+        setError("Connect wallet first.");
+        return;
+      }
+      if (!isDeployed) {
+        setError("Contracts are not configured.");
+        return;
+      }
+
+      try {
+        const amount = await resolveAmount(asset, rawAmount);
+        setPendingAction("Withdraw");
+        const hash = await writeContractAsync({
+          abi: poolAbi,
+          address: addresses.pool,
+          functionName: "withdraw",
+          args: [asset, amount, address],
+        });
+        setLastTxHash(hash);
+        await waitForReceipt(hash);
+      } catch (txError) {
+        setError(formatError(txError));
+      } finally {
+        setPendingAction(null);
+      }
+    },
+    [address, addresses.pool, isDeployed, resolveAmount, waitForReceipt, writeContractAsync]
+  );
+
+  const repay = useCallback(
+    async (asset: Address, rawAmount: string) => {
+      setError(null);
+      if (!address) {
+        setError("Connect wallet first.");
+        return;
+      }
+      if (!isDeployed) {
+        setError("Contracts are not configured.");
+        return;
+      }
+
+      try {
+        const amount = await resolveAmount(asset, rawAmount);
+        await ensureAllowance(asset, amount);
+
+        setPendingAction("Repay");
+        const hash = await writeContractAsync({
+          abi: poolAbi,
+          address: addresses.pool,
+          functionName: "repay",
+          args: [asset, amount, INTEREST_RATE_MODE_VARIABLE, address],
+        });
+        setLastTxHash(hash);
+        await waitForReceipt(hash);
+      } catch (txError) {
+        setError(formatError(txError));
+      } finally {
+        setPendingAction(null);
+      }
+    },
+    [
+      address,
+      addresses.pool,
+      ensureAllowance,
+      isDeployed,
+      resolveAmount,
+      waitForReceipt,
+      writeContractAsync,
+    ]
   );
 
   return {
     supply,
     borrow,
+    withdraw,
+    repay,
     pendingAction,
     isPending: isPending || pendingAction !== null,
     error,

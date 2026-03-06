@@ -76,7 +76,7 @@ Here's the high-level workflow from start to finish:
 4. Complete the Plaid Link sandbox auth.
 5. Confirm the wallet signature.
 6. Copy the payload JSON from browser console → save to `packages/workflow/payload.json`.
-7. Run `cre workflow simulate` with `--broadcast` to compute the score and write it on-chain (see Section 5).
+7. Run Plaid Score CRE workflow with `cre workflow simulate --broadcast` to compute the score and write it on-chain (see Section 5).
 8. Workflow completes and writes the credit score to `CreditOracle` on Sepolia.
 9. Frontend refreshes and displays the updated score/LTV.
 
@@ -100,15 +100,15 @@ cd packages/api && bun run dev
 cd packages/frontend && bun run dev
 ```
 
-## 5) Run CRE Workflow (Manual Trigger)
+## 5) Run Plaid Score CRE Workflow (Manual Trigger)
 
 CRE workflow deployment to the DON is not yet available. Instead, use `cre workflow simulate` with `--broadcast` to execute the workflow locally and write the score on-chain.
 
-### 5a) Capture the payload from the API server
+### 5a) Capture the payload from the browser console
 
 1. Open the frontend (dev servers must be running — see Section 4).
 2. Connect wallet and complete the Plaid Link flow.
-3. After the wallet signature, check the **API server console** (the terminal where `bun run dev:local` or `bun run dev` is running) — the payload will be logged with clear markers:
+3. After the wallet signature, check the **browser console** (DevTools - press F12 or Cmd+Option+I) — the payload will be logged with clear markers:
    ```
    === TRIGGER PAYLOAD FOR WORKFLOW DEBUG ===
    {
@@ -135,7 +135,7 @@ This will:
 - Run the full workflow locally (token exchange → Plaid data fetch → AI scoring)
 - Broadcast the on-chain transaction to Sepolia, writing the credit score to `CreditOracle`
 
-## 6) Run WorldID Workflow (Manual Trigger)
+## 6) Run WorldID Verification CRE Workflow (Manual Trigger)
 
 Similar to the main workflow, WorldID verification can be tested locally using `cre workflow simulate`.
 

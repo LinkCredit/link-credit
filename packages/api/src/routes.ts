@@ -20,6 +20,7 @@ import type {
   EnvBindings,
   JsonObject,
   TriggerGatewayPayload,
+  WorldIdProofPayload,
   TriggerWorldIdGatewayPayload,
   TriggerWorldIdRequest,
   TriggerScoringRequest,
@@ -62,31 +63,66 @@ function parseTriggerScoringRequest(
 function parseTriggerWorldIdRequest(
   body: JsonObject,
 ): { ok: true; value: TriggerWorldIdRequest } | { ok: false; error: string } {
-  const proof = pickString(body, ["proof"]);
-  const merkleRoot = pickString(body, ["merkle_root", "merkleRoot"]);
-  const nullifierHash = pickString(body, ["nullifier_hash", "nullifierHash"]);
-  const verificationLevel = pickString(body, [
-    "verification_level",
-    "verificationLevel",
-  ]);
+  const worldIdProofValue = body.worldIdProof;
   const walletAddress = pickString(body, ["walletAddress"]);
   const signature = pickString(body, ["signature"]);
 
-  if (!proof || !merkleRoot || !nullifierHash || !verificationLevel || !walletAddress || !signature) {
+  if (!walletAddress || !signature) {
     return {
       ok: false,
-      error:
-        "proof, merkle_root, nullifier_hash, verification_level, walletAddress, and signature are required",
+      error: "worldIdProof, walletAddress, and signature are required",
+    };
+  }
+
+  if (
+    !worldIdProofValue ||
+    typeof worldIdProofValue !== "object" ||
+    Array.isArray(worldIdProofValue)
+  ) {
+    return {
+      ok: false,
+      error: "worldIdProof must be an object",
+    };
+  }
+
+  const worldIdProof = worldIdProofValue as Record<string, unknown>;
+  const protocolVersion = pickString(worldIdProof as JsonObject, [
+    "protocol_version",
+    "protocolVersion",
+  ]);
+  const responses = worldIdProof.responses;
+
+  if (!protocolVersion || !Array.isArray(responses) || responses.length === 0) {
+    return {
+      ok: false,
+      error: "worldIdProof.protocol_version and worldIdProof.responses are required",
+    };
+  }
+
+  const firstResponse = responses[0];
+  if (!firstResponse || typeof firstResponse !== "object" || Array.isArray(firstResponse)) {
+    return {
+      ok: false,
+      error: "worldIdProof.responses[0] must be an object",
+    };
+  }
+
+  const nullifier = pickString(firstResponse as JsonObject, ["nullifier"]);
+  if (!nullifier) {
+    return {
+      ok: false,
+      error: "worldIdProof.responses[0].nullifier is required",
     };
   }
 
   return {
     ok: true,
     value: {
-      proof,
-      merkle_root: merkleRoot,
-      nullifier_hash: nullifierHash,
-      verification_level: verificationLevel,
+      worldIdProof: {
+        ...worldIdProof,
+        protocol_version: protocolVersion,
+        responses: responses as WorldIdProofPayload["responses"],
+      },
       walletAddress,
       signature,
     },
@@ -120,6 +156,12 @@ export async function createLinkTokenHandler(c: ApiContext) {
 
   const plaidBaseUrl =
     readRuntimeEnv(c.env, "PLAID_BASE_URL") ?? "https://sandbox.plaid.com";
+
+  // Get redirect URI from request or use default
+  const redirectUri = pickString(body, ["redirectUri"]) ??
+    readRuntimeEnv(c.env, "PLAID_REDIRECT_URI") ??
+    "http://localhost:5173";
+
   const plaidPayload = {
     client_id: plaidClientId,
     secret: plaidSecret,
@@ -130,6 +172,7 @@ export async function createLinkTokenHandler(c: ApiContext) {
     products: ["transactions"],
     country_codes: ["US"],
     language: "en",
+    redirect_uri: redirectUri,
   };
 
   const response = await fetch(`${plaidBaseUrl}/link/token/create`, {
@@ -242,10 +285,6 @@ export async function triggerScoringHandler(c: ApiContext) {
     walletAddress: getAddress(parsed.value.walletAddress),
   };
 
-  console.log('=== TRIGGER PAYLOAD FOR WORKFLOW DEBUG ===');
-  console.log(JSON.stringify(triggerPayload, null, 2));
-  console.log('==========================================');
-
   return triggerCreWorkflow(c, "CRE_WORKFLOW_ID", triggerPayload, "CRE");
 }
 
@@ -271,10 +310,7 @@ export async function triggerWorldIdHandler(c: ApiContext) {
   }
 
   const triggerPayload: TriggerWorldIdGatewayPayload = {
-    proof: parsed.value.proof,
-    merkle_root: parsed.value.merkle_root,
-    nullifier_hash: parsed.value.nullifier_hash,
-    verification_level: parsed.value.verification_level,
+    worldIdProof: parsed.value.worldIdProof,
     walletAddress: normalizedWallet,
   };
 

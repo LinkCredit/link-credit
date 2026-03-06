@@ -144,10 +144,12 @@ if (params.creditOracle != address(0) && vars.ltv != 0) {
 
 **Demo Parameters** (intentionally lower base LTV for clearer comparison):
 - Base LTV: 50% (standard DeFi over-collateralization without credit score)
-- Liquidation Threshold: 75%
-- Max credit boost: 15%
+- Liquidation Threshold: 76% (allows max LTV of 75% with 1% safety margin)
+- Max credit boost: 15% (from credit score)
+- World ID verification boost: +10% (additional boost for verified users)
 - Credit score 80/100 user: effective LTV = 62% → collateral ratio ~161% (vs 200% without score)
 - Credit score 100/100 user: effective LTV = 65% → collateral ratio ~154%
+- Credit score 100/100 + World ID verified: effective LTV = 75% (50% + 15% + 10%, capped at liquidation threshold - 1%) → collateral ratio ~133%
 
 ### Week Two (from 2/14): Switch to Confidential HTTP
 

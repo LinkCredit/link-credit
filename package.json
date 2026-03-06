@@ -4,8 +4,11 @@
   "workspaces": ["packages/*"],
   "scripts": {
     "build": "bun run --filter '*' build",
+    "dev": "bun run dev:sepolia",
     "dev:api": "bun run --filter @link-credit/api dev",
+    "dev:sepolia": "bash scripts/dev-local.sh",
     "dev:local": "bash scripts/dev-local.sh",
+    "dev:fork": "bash scripts/dev-fork.sh",
     "dev:frontend": "bun run --filter @link-credit/frontend dev",
     "test": "bun run --filter '*' test",
     "sync:addresses": "bun run scripts/sync-addresses.ts"

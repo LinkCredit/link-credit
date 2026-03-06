@@ -14,6 +14,8 @@ fs_permissions = [{ access = "read-write", path = "./" }]
 
 [rpc_endpoints]
 sepolia = "${SEPOLIA_RPC_URL}"
+# Optional: Tenderly Sepolia fork RPC for testing
+# tenderly_fork = "${TENDERLY_FORK_RPC_URL}"
 
 [fuzz]
 runs = 1000

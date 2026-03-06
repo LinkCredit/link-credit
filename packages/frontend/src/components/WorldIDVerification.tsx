@@ -2,6 +2,7 @@ import { IDKit, type IDKitResult, type CredentialRequestType, type IDKitCompleti
 import { useEffect, useState } from "react";
 import { useAccount, useSignMessage } from "wagmi";
 import { apiBaseUrl } from "../config/addresses";
+import { useWorldIdVerification } from "../hooks/useWorldIdVerification";
 import QRCode from "qrcode";
 
 const worldcoinAppId = import.meta.env
@@ -24,18 +25,18 @@ function formatError(error: unknown): string {
   return "World ID verification failed.";
 }
 
+function formatPercent(value: number): string {
+  return `${value.toFixed(2)}%`;
+}
+
 function createWorldIdOwnershipMessage(input: {
   walletAddress: string;
-  merkleRoot: string;
   nullifierHash: string;
-  verificationLevel: string;
 }): string {
   return [
     "Link Credit World ID authorization",
     `walletAddress:${input.walletAddress}`,
-    `merkleRoot:${input.merkleRoot}`,
     `nullifierHash:${input.nullifierHash}`,
-    `verificationLevel:${input.verificationLevel}`,
   ].join("\n");
 }
 
@@ -43,16 +44,17 @@ export function WorldIDVerification(): React.JSX.Element {
   const { address, isConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
   const [isVerifying, setIsVerifying] = useState(false);
-  const [isVerified, setIsVerified] = useState(false);
+  const [verificationAccepted, setVerificationAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rpContext, setRpContext] = useState<RpContext | null>(null);
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
   const [connectorURI, setConnectorURI] = useState<string | null>(null);
   const [isWaitingForScan, setIsWaitingForScan] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
+  const { isVerified, verificationBoostPercent } = useWorldIdVerification(address);
 
   useEffect(() => {
-    setIsVerified(false);
+    setVerificationAccepted(false);
     setError(null);
   }, [address]);
 
@@ -88,25 +90,23 @@ export function WorldIDVerification(): React.JSX.Element {
         throw new Error("No proof response received.");
       }
 
-      const isV3 = proof.protocol_version === "3.0";
-      const merkleRoot = isV3 ? (response as any).merkle_root : "0x0";
-      const nullifierHash = (response as any).nullifier;
-      const verificationLevel = isV3 ? "orb" : response.identifier;
+      const nullifierHash =
+        typeof (response as { nullifier?: unknown }).nullifier === "string"
+          ? (response as { nullifier: string }).nullifier
+          : undefined;
+      if (!nullifierHash) {
+        throw new Error("World ID response is missing nullifier.");
+      }
 
       const message = createWorldIdOwnershipMessage({
         walletAddress: address,
-        merkleRoot,
         nullifierHash,
-        verificationLevel,
       });
       const signature = await signMessageAsync({ message });
 
       const workflowPayload = {
-        proof: (response as any).proof,
-        merkle_root: merkleRoot,
-        nullifier_hash: nullifierHash,
-        verification_level: verificationLevel,
-        walletAddress: address
+        worldIdProof: proof,
+        walletAddress: address,
       };
 
       console.log('=== WORLDID TRIGGER PAYLOAD FOR WORKFLOW DEBUG ===');
@@ -132,7 +132,7 @@ export function WorldIDVerification(): React.JSX.Element {
         throw new Error(payload.message || "World ID verification was not accepted.");
       }
 
-      setIsVerified(true);
+      setVerificationAccepted(true);
     } catch (verificationError) {
       setError(formatError(verificationError));
     } finally {
@@ -159,7 +159,7 @@ export function WorldIDVerification(): React.JSX.Element {
         app_id: worldcoinAppId,
         action: ACTION,
         rp_context: rpContext,
-        allow_legacy_proofs: false,
+        allow_legacy_proofs: true,
         environment: "staging"
       }).constraints(deviceConstraint);
 
@@ -225,7 +225,15 @@ export function WorldIDVerification(): React.JSX.Element {
     if (isVerified) {
       return (
         <p className="mt-4 text-sm font-medium text-emerald-300">
-          ✓ Verified. Your World ID bonus will apply to LTV boost.
+          ✓ Verified. World ID boost: +{formatPercent(verificationBoostPercent)}.
+        </p>
+      );
+    }
+
+    if (verificationAccepted) {
+      return (
+        <p className="mt-4 text-sm font-medium text-cyan-300">
+          Verification accepted. Waiting for on-chain boost update.
         </p>
       );
     }
@@ -296,7 +304,7 @@ export function WorldIDVerification(): React.JSX.Element {
     <section className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 shadow-2xl shadow-cyan-900/20">
       <h2 className="text-xl font-semibold text-white">World ID (optional)</h2>
       <p className="mt-1 text-sm text-slate-300">
-        Verify unique humanness for an extra +10% on your LTV boost.
+        Verify unique humanness for an extra LTV boost.
       </p>
 
       {renderContent()}

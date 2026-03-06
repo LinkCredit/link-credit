@@ -1,10 +1,8 @@
 import { useEffect, useState } from "react";
 import { useAccount, useSignMessage } from "wagmi";
-import { isDeployed } from "../config/addresses";
+import { useIsDeployed } from "../config/addresses";
 import { useCreditScore } from "../hooks/useCreditScore";
 import { usePlaidLink } from "../hooks/usePlaidLink";
-
-const BASE_LTV_PERCENT = 75;
 
 function formatPercent(value: number): string {
   return `${value.toFixed(2)}%`;
@@ -19,11 +17,17 @@ function buttonLabel(isAwaitingOnchain: boolean, isBusy: boolean): string {
 export function CreditScorePanel(): React.JSX.Element {
   const { address, isConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
+  const isDeployed = useIsDeployed();
   const [pendingScoreBps, setPendingScoreBps] = useState<bigint | null>(null);
   const {
     score,
     scoreBps,
+    baseLtvPercent,
+    hasBaseLtv,
     ltvBoostPercent,
+    plaidBoostPercent,
+    worldIdBoostPercent,
+    isWorldIdVerified,
     hasScore,
     isLoading,
     isFetching,
@@ -45,8 +49,10 @@ export function CreditScorePanel(): React.JSX.Element {
     setPendingScoreBps(null);
   }, [address]);
 
-  const boostedLtv = BASE_LTV_PERCENT + ltvBoostPercent;
+  const boostedLtv = baseLtvPercent + ltvBoostPercent;
   const scoreProgress = Math.max(0, Math.min(score, 100));
+  const showPlaidBoost = plaidBoostPercent > 0;
+  const showWorldIdBoost = isWorldIdVerified && worldIdBoostPercent > 0;
   const isAwaitingOnchainConfirmation = pendingScoreBps !== null;
   const isBusy =
     plaid.isPreparing || plaid.isEvaluating || isAwaitingOnchainConfirmation;
@@ -94,7 +100,7 @@ export function CreditScorePanel(): React.JSX.Element {
         <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
           <p className="text-xs uppercase tracking-wide text-slate-400">Base LTV</p>
           <p className="mt-2 text-2xl font-semibold text-white">
-            {formatPercent(BASE_LTV_PERCENT)}
+            {hasBaseLtv ? formatPercent(baseLtvPercent) : "--"}
           </p>
         </div>
         <div className="rounded-2xl border border-cyan-400/30 bg-cyan-500/10 p-4">
@@ -102,11 +108,25 @@ export function CreditScorePanel(): React.JSX.Element {
             With credit boost
           </p>
           <p className="mt-2 text-2xl font-semibold text-cyan-100">
-            {formatPercent(boostedLtv)}
+            {hasBaseLtv ? formatPercent(boostedLtv) : "--"}
           </p>
-          <p className="text-xs text-cyan-200/80">
-            +{formatPercent(ltvBoostPercent)} from CreditOracle
-          </p>
+          <div className="mt-2 space-y-1 text-xs">
+            {showPlaidBoost ? (
+              <div className="flex items-center justify-between text-cyan-100">
+                <span>✓ Plaid credit score</span>
+                <span>+{formatPercent(plaidBoostPercent)}</span>
+              </div>
+            ) : null}
+            {showWorldIdBoost ? (
+              <div className="flex items-center justify-between text-emerald-200">
+                <span>✓ World ID verified</span>
+                <span>+{formatPercent(worldIdBoostPercent)}</span>
+              </div>
+            ) : null}
+            {ltvBoostPercent === 0 ? (
+              <p className="text-cyan-200/80">No boost yet</p>
+            ) : null}
+          </div>
         </div>
       </div>
 
