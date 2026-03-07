@@ -21,6 +21,9 @@ function normalizeAddresses(source: Record<string, string | undefined>) {
     weth: parseAddress(source.weth),
     usdx: parseAddress(source.usdx),
     wbtc: parseAddress(source.wbtc),
+    wethPriceFeed: parseAddress(source.wethPriceFeed),
+    usdxPriceFeed: parseAddress(source.usdxPriceFeed),
+    wbtcPriceFeed: parseAddress(source.wbtcPriceFeed),
   } as const;
 }
 

@@ -84,7 +84,14 @@ export const initWorkflow = (rawConfig: Config) => {
       .sendRequest(
         runtime,
         (requester) =>
-          exchangePlaidToken(requester, config, plaidClientId, plaidSecret, input.publicToken),
+          exchangePlaidToken(
+            runtime,
+            requester,
+            config,
+            plaidClientId,
+            plaidSecret,
+            input.publicToken,
+          ),
         consensusIdenticalAggregation<string>(),
       )()
       .result();
@@ -235,12 +242,16 @@ function readSecret(runtime: Runtime<Config>, id: string): string {
 }
 
 function exchangePlaidToken(
+  runtime: Runtime<Config>,
   sendRequester: HTTPSendRequester,
   config: Config,
   plaidClientId: string,
   plaidSecret: string,
   publicToken: string,
 ): string {
+  runtime.log(
+    `[workflow] plaid exchange request clientId=${maskTail(plaidClientId)} publicToken=${maskHead(publicToken)}`,
+  );
   const response = sendRequester
     .sendRequest({
       url: `${config.plaidBaseUrl}/item/public_token/exchange`,
@@ -477,7 +488,11 @@ function parseJsonResponse<T>(
   context: string,
 ): T {
   if (!responseOk(response)) {
-    throw new Error(`${context} failed status=${response.statusCode}`);
+    const rawBody = decodeBody(response);
+    const compactBody = rawBody.length > 600 ? `${rawBody.slice(0, 600)}...` : rawBody;
+    throw new Error(
+      `${context} failed status=${response.statusCode} body=${compactBody}`,
+    );
   }
 
   const parsed = safeJsonParse(decodeBody(response));
@@ -495,6 +510,18 @@ function parsePlaidData(raw: string): PlaidData {
   }
 
   return parsed as PlaidData;
+}
+
+function maskTail(value: string, keep = 6): string {
+  if (!value) return "";
+  if (value.length <= keep) return value;
+  return `***${value.slice(-keep)}`;
+}
+
+function maskHead(value: string, keep = 20): string {
+  if (!value) return "";
+  if (value.length <= keep) return value;
+  return `${value.slice(0, keep)}***`;
 }
 
 function jsonBody(payload: object): string {

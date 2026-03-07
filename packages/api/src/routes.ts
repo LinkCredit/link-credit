@@ -36,6 +36,18 @@ import {
 
 type ApiContext = Context<{ Bindings: EnvBindings }>;
 
+function maskTail(value: string, keep = 6): string {
+  if (!value) return "";
+  if (value.length <= keep) return value;
+  return `***${value.slice(-keep)}`;
+}
+
+function maskHead(value: string, keep = 14): string {
+  if (!value) return "";
+  if (value.length <= keep) return value;
+  return `${value.slice(0, keep)}***`;
+}
+
 function parseTriggerScoringRequest(
   body: JsonObject,
 ): { ok: true; value: TriggerScoringRequest } | { ok: false; error: string } {
@@ -157,10 +169,9 @@ export async function createLinkTokenHandler(c: ApiContext) {
   const plaidBaseUrl =
     readRuntimeEnv(c.env, "PLAID_BASE_URL") ?? "https://sandbox.plaid.com";
 
-  // Get redirect URI from request or use default
-  const redirectUri = pickString(body, ["redirectUri"]) ??
-    readRuntimeEnv(c.env, "PLAID_REDIRECT_URI") ??
-    "http://localhost:5173";
+  // Only send redirect_uri when explicitly configured on the server.
+  // If provided but not allowlisted in Plaid Dashboard, link token creation fails with INVALID_FIELD.
+  const redirectUri = readRuntimeEnv(c.env, "PLAID_REDIRECT_URI");
 
   const plaidPayload = {
     client_id: plaidClientId,
@@ -172,8 +183,11 @@ export async function createLinkTokenHandler(c: ApiContext) {
     products: ["transactions"],
     country_codes: ["US"],
     language: "en",
-    redirect_uri: redirectUri,
+    ...(redirectUri ? { redirect_uri: redirectUri } : {}),
   };
+  console.info(
+    `[plaid/link-token] user=${userId} clientId=${maskTail(plaidClientId)} redirectUri=${redirectUri ?? "unset"}`,
+  );
 
   const response = await fetch(`${plaidBaseUrl}/link/token/create`, {
     method: "POST",
@@ -183,6 +197,9 @@ export async function createLinkTokenHandler(c: ApiContext) {
 
   const raw = await response.text();
   if (!response.ok) {
+    console.error(
+      `[plaid/link-token] failed status=${response.status} clientId=${maskTail(plaidClientId)} body=${raw}`,
+    );
     return c.json(
       {
         error: "Failed to create Plaid link token",
@@ -197,6 +214,13 @@ export async function createLinkTokenHandler(c: ApiContext) {
   if (!parsed) {
     return c.json({ error: "Plaid returned a non-JSON response" }, 502);
   }
+
+  const linkToken = typeof (parsed as Record<string, unknown>).link_token === "string"
+    ? (parsed as Record<string, string>).link_token
+    : null;
+  console.info(
+    `[plaid/link-token] success clientId=${maskTail(plaidClientId)} linkToken=${linkToken ? maskHead(linkToken) : "missing"}`,
+  );
 
   return c.json(parsed);
 }

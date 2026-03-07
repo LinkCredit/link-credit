@@ -5,6 +5,19 @@ import { erc20Abi, poolAbi } from "../config/abi";
 import { useDeployedAddresses, useIsDeployed } from "../config/addresses";
 
 const INTEREST_RATE_MODE_VARIABLE = 2n;
+const RECEIPT_TIMEOUT_MS = 120_000;
+const RECEIPT_FALLBACK_POLL_MS = 120_000;
+const RECEIPT_POLL_INTERVAL_MS = 3_000;
+const ALLOWANCE_POLL_TIMEOUT_MS = 120_000;
+const ALLOWANCE_POLL_INTERVAL_MS = 2_000;
+
+function isTimeoutError(error: unknown): boolean {
+  return error instanceof Error && error.message.includes("Timed out while waiting for transaction receipt.");
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function formatError(error: unknown): string {
   if (error instanceof Error) {
@@ -28,9 +41,56 @@ export function useLending() {
       if (!publicClient) {
         throw new Error("No public client available.");
       }
-      await publicClient.waitForTransactionReceipt({ hash });
+      try {
+        await Promise.race([
+          publicClient.waitForTransactionReceipt({ hash }),
+          new Promise<never>((_, reject) => {
+            setTimeout(
+              () => reject(new Error("Timed out while waiting for transaction receipt.")),
+              RECEIPT_TIMEOUT_MS
+            );
+          }),
+        ]);
+      } catch (error) {
+        if (!isTimeoutError(error)) {
+          throw error;
+        }
+
+        const deadline = Date.now() + RECEIPT_FALLBACK_POLL_MS;
+        while (Date.now() < deadline) {
+          const receipt = await publicClient
+            .getTransactionReceipt({ hash })
+            .catch(() => null);
+          if (receipt) {
+            return;
+          }
+          await sleep(RECEIPT_POLL_INTERVAL_MS);
+        }
+
+        throw new Error(
+          "Transaction was sent, but receipt confirmation is delayed. Please check Last tx in Etherscan and refresh."
+        );
+      }
     },
     [publicClient]
+  );
+
+  const readAllowance = useCallback(
+    async (asset: Address): Promise<bigint> => {
+      if (!address) {
+        throw new Error("Connect wallet first.");
+      }
+      if (!publicClient) {
+        throw new Error("No public client available.");
+      }
+      return (await publicClient.readContract({
+        abi: erc20Abi,
+        address: asset,
+        functionName: "allowance",
+        args: [address, addresses.pool],
+      })) as bigint;
+    },
+    [address, addresses.pool, publicClient]
   );
 
   const resolveAmount = useCallback(
@@ -54,6 +114,23 @@ export function useLending() {
     [publicClient]
   );
 
+  const waitForAllowance = useCallback(
+    async (asset: Address, requiredAmount: bigint) => {
+      const deadline = Date.now() + ALLOWANCE_POLL_TIMEOUT_MS;
+      while (Date.now() < deadline) {
+        const allowance = await readAllowance(asset);
+        if (allowance >= requiredAmount) {
+          return;
+        }
+        await sleep(ALLOWANCE_POLL_INTERVAL_MS);
+      }
+      throw new Error(
+        "Approve was submitted, but allowance is not updated yet. Please wait for confirmation and try again."
+      );
+    },
+    [readAllowance]
+  );
+
   const ensureAllowance = useCallback(
     async (asset: Address, amount: bigint) => {
       if (!address) {
@@ -63,28 +140,34 @@ export function useLending() {
         throw new Error("No public client available.");
       }
 
-      const allowance = (await publicClient.readContract({
-        abi: erc20Abi,
-        address: asset,
-        functionName: "allowance",
-        args: [address, addresses.pool],
-      })) as bigint;
+      const allowance = await readAllowance(asset);
 
       if (allowance >= amount) {
         return;
       }
 
-      setPendingAction("Approve token");
-      const approveHash = await writeContractAsync({
-        abi: erc20Abi,
-        address: asset,
-        functionName: "approve",
-        args: [addresses.pool, amount],
-      });
-      setLastTxHash(approveHash);
-      await waitForReceipt(approveHash);
+      try {
+        setPendingAction("Approve token");
+        const approveHash = await writeContractAsync({
+          abi: erc20Abi,
+          address: asset,
+          functionName: "approve",
+          args: [addresses.pool, amount],
+        });
+        setLastTxHash(approveHash);
+        await waitForAllowance(asset, amount);
+      } finally {
+        setPendingAction(null);
+      }
     },
-    [address, addresses.pool, publicClient, waitForReceipt, writeContractAsync]
+    [
+      address,
+      addresses.pool,
+      publicClient,
+      readAllowance,
+      waitForAllowance,
+      writeContractAsync,
+    ]
   );
 
   const supply = useCallback(
@@ -130,7 +213,7 @@ export function useLending() {
   );
 
   const borrow = useCallback(
-    async (asset: Address, rawAmount: string) => {
+    async (asset: Address, rawAmount: string, maxAmountUnits?: bigint) => {
       setError(null);
       if (!address) {
         setError("Connect wallet first.");
@@ -143,6 +226,10 @@ export function useLending() {
 
       try {
         const amount = await resolveAmount(asset, rawAmount);
+        if (typeof maxAmountUnits === "bigint" && amount > maxAmountUnits) {
+          setError("Borrow amount exceeds current maximum available.");
+          return;
+        }
         setPendingAction("Borrow");
         const hash = await writeContractAsync({
           abi: poolAbi,
