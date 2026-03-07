@@ -1,60 +1,93 @@
 # Link Credit
 
-Link Credit is a hackathon-first DeFi credit layer: users connect real bank activity through Plaid, get a privacy-aware credit score, and unlock better borrowing terms on-chain.
+Link Credit is a hackathon project for **Chainlink CRE**:  
+https://chain.link/hackathon
 
-## 1) Implemented: Plaid Data Pipeline + Credit Scoring
+It brings real-world cashflow signals into DeFi lending, so borrowers are not treated as anonymous wallets with identical risk.
 
-This part is already shipped as an independent, testable scoring loop under `src/tests/`:
+## Demo
 
-- `src/tests/plaid_fetch.py`: pulls real Plaid Sandbox balances + transactions
-- `src/tests/score_calculator.py`: computes rule score, then lets an AI agent apply a bounded calibration
-- `src/tests/test_credit_flow.py`: runs end-to-end for `high_credit` vs `low_credit`
-- `config.yaml`: single place for thresholds, weights, and LLM provider routing
+YouTube walkthrough (to be added):  
+`<PASTE_YOUTUBE_DEMO_LINK_HERE>`
 
-### 1.1 Data Flow
+## Why This Exists
+
+Most on-chain lending uses one-size-fits-all collateral rules.  
+That is safe for protocols, but unfair and inefficient for users with strong off-chain repayment behavior.
+
+Link Credit solves this by combining:
+
+- **World ID** for Sybil resistance (one human, one scoring identity)
+- **Plaid** for permissioned bank cashflow data
+- **AI + rule-based scoring** for a bounded, explainable credit signal
+- **Chainlink CRE** to run the scoring workflow and push results on-chain
+
+## What It Does
+
+1. User verifies with **World ID**.
+2. User links bank data via **Plaid Link**.
+3. Workflow fetches balances + transactions, computes a base score, then applies bounded AI calibration.
+4. Final score is written on-chain as `scoreBps`.
+5. Lending logic reads that score and applies a **credit boost** to borrowing terms.
+
+## Architecture (Judge-Friendly View)
 
 ```text
-[Sandbox Persona]
-   -> /sandbox/public_token/create
-   -> /item/public_token/exchange
-   -> /accounts/balance/get + /transactions/get
-   -> Feature extraction
-   -> Rule score S_rule (0-100)
-   -> Agent input: compressed feature summary + S_rule
-   -> Agent output: delta_ai (-10 to +10) + reason codes
-   -> Final score S = clamp(S_rule + delta_ai, 0, 100)
-   -> scoreBps = S * 100
+Frontend (React)
+  - Wallet connect
+  - World ID verification
+  - Plaid Link auth
+  - Lending UI / score UI
+        |
+        v
+API (Hono / Worker-compatible)
+  - Create Plaid link token
+  - Trigger workflows
+  - Store encrypted access tokens (KV/in-memory fallback)
+        |
+        v
+Chainlink CRE Workflows
+  - Exchange public_token -> access_token
+  - Fetch Plaid balances + transactions
+  - Run deterministic score + AI adjustment
+  - Write score to CreditOracle on Sepolia
+        |
+        v
+Contracts (Aave-based lending + oracle adapters)
+  - Read score / boost
+  - Adjust effective borrowing capacity
 ```
 
-### 1.2 Scoring Formula
+## Role of Chainlink CRE
 
-The scorer is deterministic-first and agent-calibrated:
+CRE is the execution layer that makes this flow practical for a hackathon-grade production design:
 
-`S_rule = 0.30*S_buf + 0.25*S_net + 0.20*S_inc + 0.15*S_spend + 0.10*S_risk`  
-`S = clamp(S_rule + delta_ai, 0, 100), where delta_ai in [-10, 10]`
+- Orchestrates multi-step off-chain credit computation
+- Handles deterministic workflow logic + external API calls
+- Bridges computed outputs back on-chain in a verifiable flow
 
-- `S_buf`: balance safety buffer
-- `S_net`: net cash flow quality
-- `S_inc`: income stability
-- `S_spend`: spending discipline
-- `S_risk`: risk event penalty (e.g. overdraft/NSF keywords)
+In short: CRE lets us connect Web2 financial signals to Web3 risk logic without building a heavy custom backend.
 
-Why add agent calibration:
-- Keep deterministic scoring as the anchor for reproducibility
-- Add limited human-like judgment for edge cases without letting model drift dominate
-- Return short reason codes/explanations for demo transparency
+## Core Features
 
-Final on-chain-ready output:
+- **World ID gating** before scoring
+- **Plaid integration** for sandbox bank data
+- **Hybrid scoring**:
+  - deterministic rule score (stable baseline)
+  - bounded AI delta (controlled adjustment, not unconstrained model output)
+- **On-chain score publishing** to `CreditOracle`
+- **Dynamic lending boost** integrated with protocol-side risk params
 
-`scoreBps = S * 100`
+## Project Structure
 
-### 1.3 Example
+- `packages/frontend`: dApp UI (wallet, World ID, Plaid, lending panels)
+- `packages/api`: link-token + workflow trigger API
+- `packages/workflow`: CRE credit scoring workflow
+- `packages/worldid-workflow`: CRE workflow for World ID-related on-chain flow
+- `packages/contracts`: lending + oracle contracts and deployment artifacts
 
-- High-credit persona (example): `S = 84`, `scoreBps = 8400`
-- Low-credit persona (example): `S = 49`, `scoreBps = 4900`
+## Run Guide
 
-This shows clear score separation for different financial behaviors in a hackathon demo setting.
+For setup and end-to-end execution, see:  
+[INTEGRATION.md](./INTEGRATION.md)
 
-## 2) CRE Workflow Integration
-
-## 3) Smart Contracts + Variable Collateral Lending
