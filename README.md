@@ -1,93 +1,118 @@
 # Link Credit
 
-Link Credit is a hackathon project for **Chainlink CRE**:  
+Link Credit is a hackathon project built for **Chainlink CRE**:  
 https://chain.link/hackathon
 
-It brings real-world cashflow signals into DeFi lending, so borrowers are not treated as anonymous wallets with identical risk.
+It introduces privacy-aware, identity-aware credit signals into DeFi lending, so users are not forced into purely one-size-fits-all collateral rules.
 
 ## Demo
 
-YouTube walkthrough (to be added):  
+YouTube walkthrough:  
 `<PASTE_YOUTUBE_DEMO_LINK_HERE>`
 
-## Why This Exists
+## Problem
 
-Most on-chain lending uses one-size-fits-all collateral rules.  
-That is safe for protocols, but unfair and inefficient for users with strong off-chain repayment behavior.
+Most DeFi lending is over-collateralized by design. That protects protocols, but ignores two important facts:
 
-Link Credit solves this by combining:
+- users have different real-world repayment behavior
+- without Sybil resistance, one person can create many wallets and game credit logic
 
-- **World ID** for Sybil resistance (one human, one scoring identity)
-- **Plaid** for permissioned bank cashflow data
-- **AI + rule-based scoring** for a bounded, explainable credit signal
-- **Chainlink CRE** to run the scoring workflow and push results on-chain
+This project addresses both.
 
-## What It Does
+## Key Building Blocks
 
-1. User verifies with **World ID**.
-2. User links bank data via **Plaid Link**.
-3. Workflow fetches balances + transactions, computes a base score, then applies bounded AI calibration.
-4. Final score is written on-chain as `scoreBps`.
-5. Lending logic reads that score and applies a **credit boost** to borrowing terms.
+- **Plaid**: a financial data network used here (sandbox mode) to fetch user-permissioned account balances and transaction history.
+- **World ID**: proof-of-personhood using zero-knowledge proofs; used here to enforce "one real person, one scoring identity" and reduce Sybil abuse.
+- **Chainlink CRE**: workflow execution layer that orchestrates token exchange, data fetch, scoring, and on-chain writes.
 
-## Architecture (Judge-Friendly View)
+## End-to-End Flow
+
+1. User connects wallet and verifies with World ID.
+2. User completes Plaid Link authorization.
+3. API creates Plaid link token and forwards workflow trigger payload.
+4. CRE workflow exchanges `public_token`, fetches balances + transactions, computes score, and writes `scoreBps` on-chain.
+5. Lending layer reads the on-chain score and applies a credit boost to effective borrowing power.
+
+## Architecture
 
 ```text
 Frontend (React)
   - Wallet connect
   - World ID verification
   - Plaid Link auth
-  - Lending UI / score UI
+  - Score + lending UI
         |
         v
 API (Hono / Worker-compatible)
-  - Create Plaid link token
-  - Trigger workflows
-  - Store encrypted access tokens (KV/in-memory fallback)
+  - Plaid link token creation
+  - Workflow trigger endpoints
+  - Encrypted token storage
         |
         v
-Chainlink CRE Workflows
-  - Exchange public_token -> access_token
-  - Fetch Plaid balances + transactions
-  - Run deterministic score + AI adjustment
-  - Write score to CreditOracle on Sepolia
+Chainlink CRE Workflow
+  - Plaid token exchange
+  - Plaid balances/transactions fetch
+  - Rule score + AI calibration
+  - On-chain score write
         |
         v
-Contracts (Aave-based lending + oracle adapters)
-  - Read score / boost
-  - Adjust effective borrowing capacity
+Contracts (Credit Oracle + Aave-based lending integration)
+  - World ID-aware credit identity checks
+  - Score storage (`scoreBps`)
+  - Credit boost applied to lending parameters
 ```
 
-## Role of Chainlink CRE
+## Credit Scoring Logic
 
-CRE is the execution layer that makes this flow practical for a hackathon-grade production design:
+Scoring is deterministic-first with bounded AI calibration:
 
-- Orchestrates multi-step off-chain credit computation
-- Handles deterministic workflow logic + external API calls
-- Bridges computed outputs back on-chain in a verifiable flow
+`S_rule = 0.30*S_buf + 0.25*S_net + 0.20*S_inc + 0.15*S_spend + 0.10*S_risk`  
+`S = clamp(S_rule + delta_ai, 0, 100), where delta_ai in [-10, 10]`
 
-In short: CRE lets us connect Web2 financial signals to Web3 risk logic without building a heavy custom backend.
+- `S_buf`: balance safety buffer
+- `S_net`: net cashflow quality
+- `S_inc`: income stability
+- `S_spend`: spending discipline
+- `S_risk`: risk event penalty (for example overdraft / NSF-like patterns)
+
+Final on-chain value:
+
+`scoreBps = S * 100`
+
+Why AI adjustment is bounded:
+
+- deterministic score remains the anchor for reproducibility
+- AI handles edge cases without taking over the model
+- `delta_ai` range is constrained to reduce drift and manipulation risk
+
+## Why CRE Matters Here
+
+CRE is the practical bridge between off-chain financial signals and on-chain risk logic:
+
+- orchestrates multi-step external API workflow
+- keeps scoring flow in one auditable execution pipeline
+- writes final output back to contracts used by the lending path
+
+This avoids building a heavy centralized backend for core scoring orchestration.
 
 ## Core Features
 
-- **World ID gating** before scoring
-- **Plaid integration** for sandbox bank data
-- **Hybrid scoring**:
-  - deterministic rule score (stable baseline)
-  - bounded AI delta (controlled adjustment, not unconstrained model output)
-- **On-chain score publishing** to `CreditOracle`
-- **Dynamic lending boost** integrated with protocol-side risk params
+- World ID-based Sybil resistance gating
+- Plaid sandbox integration for financial signals
+- Hybrid rule + AI credit scoring
+- On-chain score publication to oracle contract
+- Credit-aware lending boost in an Aave-based flow
 
-## Project Structure
+## Repository Map
 
-- `packages/frontend`: dApp UI (wallet, World ID, Plaid, lending panels)
-- `packages/api`: link-token + workflow trigger API
-- `packages/workflow`: CRE credit scoring workflow
-- `packages/worldid-workflow`: CRE workflow for World ID-related on-chain flow
-- `packages/contracts`: lending + oracle contracts and deployment artifacts
+- `packages/frontend` — dApp UI
+- `packages/api` — link-token + trigger API
+- `packages/workflow` — CRE credit scoring workflow
+- `packages/worldid-workflow` — CRE workflow for World ID-related flow
+- `packages/contracts` — contracts and deployment artifacts
 
 ## Run Guide
 
-For setup and end-to-end execution, see:  
+Setup and end-to-end execution steps are in:  
 [INTEGRATION.md](./INTEGRATION.md)
 
