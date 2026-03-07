@@ -52,6 +52,16 @@ Copy `packages/workflow/.env.example` to `packages/workflow/.env` and fill in:
 | `TOKEN_ENCRYPTION_KEY` | Generate | Same as API: `openssl rand -hex 32` |
 | `WORKER_BASE_URL` | — | Defaults to `http://localhost:3001` |
 
+### For WorldID CRE workflow (`packages/worldid-workflow/.env`) — REQUIRED for manual trigger
+
+Copy `packages/worldid-workflow/.env.example` to `packages/worldid-workflow/.env` and fill in:
+
+| Variable | Source | Notes |
+|---|---|---|
+| `CRE_ETH_PRIVATE_KEY` | Your wallet | Private key for signing transactions |
+
+Other configuration (chain selector, registry address, World ID app/RP IDs) is managed via config files (`config.staging.json`, `config.production.json`).
+
 ### For Frontend (`packages/frontend/.env`) — OPTIONAL
 
 Copy `packages/frontend/.env.example` to `packages/frontend/.env` if you need custom values. Otherwise sensible defaults are used:
@@ -147,10 +157,20 @@ Similar to the main workflow, WorldID verification can be tested locally using `
    ```
    === WORLDID TRIGGER PAYLOAD FOR WORKFLOW DEBUG ===
    {
-     "proof": "0x...",
-     "merkle_root": "0x...",
-     "nullifier_hash": "0x...",
-     "verification_level": "device",
+     "worldIdProof": {
+       "action": "credit-scoring",
+       "environment": "staging",
+       "nonce": "0x003b3bc6aa0fe1f812d9c7420c6fe24162f9a951587e5e6b2ace3e768e3c8216",
+       "protocol_version": "3.0",
+       "responses": [
+         {
+           "identifier": "device",
+           "merkle_root": "0x2362be3c4a31efd961e64471044a93ba6013dc44be1effc49a34b062c9200c52",
+           "nullifier": "0x2674ecfd325f286f573a2d5633ad12d7bbe28e62ce20713a28695437343c0278",
+           "proof": "0x00b91e9724e39a74c72a79fcb9246e7f03828a4afeabaa14db90793a7da7fbe9..."
+         }
+       ]
+     },
      "walletAddress": "0xYourWalletAddress"
    }
    ===================================================
