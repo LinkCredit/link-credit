@@ -1,14 +1,14 @@
 # Link Credit
 
 Link Credit is a hackathon project built for **Chainlink CRE**:  
-https://chain.link/hackathon
+[Chainlink Hackathon](https://chain.link/hackathon)
 
 It introduces privacy-aware, identity-aware credit signals into DeFi lending, so users are not forced into purely one-size-fits-all collateral rules.
 
 ## Demo
 
 YouTube walkthrough:  
-`<PASTE_YOUTUBE_DEMO_LINK_HERE>`
+[https://youtu.be/c6gPOyzxN7I](https://youtu.be/c6gPOyzxN7I)
 
 ## Problem
 
@@ -34,6 +34,8 @@ This project addresses both.
 5. Lending layer reads both signals and applies the final boost.
 
 ## Architecture
+
+![Link Credit Architecture](./src/pics/20260309-003525.jpeg)
 
 ```text
 Frontend (React)
