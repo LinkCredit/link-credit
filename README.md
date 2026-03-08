@@ -27,11 +27,11 @@ This project addresses both.
 
 ## End-to-End Flow
 
-1. User connects wallet and verifies with World ID.
-2. User completes Plaid Link authorization.
-3. API creates Plaid link token and forwards workflow trigger payload.
-4. CRE workflow exchanges `public_token`, fetches balances + transactions, computes score, and writes `scoreBps` on-chain.
-5. Lending layer reads the on-chain score and applies a credit boost to effective borrowing power.
+1. User connects wallet and completes **Plaid Link** authorization first.
+2. API creates Plaid link token and forwards workflow trigger payload.
+3. CRE workflow exchanges `public_token`, fetches balances + transactions, computes score, and writes `scoreBps` on-chain.
+4. User completes **World ID** verification.
+5. Lending layer reads both signals and applies the final boost.
 
 ## Architecture
 
@@ -85,6 +85,21 @@ Why AI adjustment is bounded:
 - AI handles edge cases without taking over the model
 - `delta_ai` range is constrained to reduce drift and manipulation risk
 
+## Boost Composition
+
+- **Plaid boost**: derived from the credit score pipeline above (rule formula + bounded AI adjustment).
+- **World ID boost**: fixed **+10%** if the user is verified.
+- **Final boost**: additive.
+
+`finalBoost = plaidBoost + worldIdBoost`
+
+where:
+
+- `worldIdBoost = 10%` if verified, otherwise `0%`
+- `plaidBoost` is computed from `scoreBps`
+
+The lending side applies protocol safety limits when needed.
+
 ## Why CRE Matters Here
 
 CRE is the practical bridge between off-chain financial signals and on-chain risk logic:
@@ -115,4 +130,3 @@ This avoids building a heavy centralized backend for core scoring orchestration.
 
 Setup and end-to-end execution steps are in:  
 [INTEGRATION.md](./INTEGRATION.md)
-
