@@ -131,10 +131,22 @@ CRE workflow deployment to the DON is not yet available. Instead, use `cre workf
 
 ### 5b) Simulate with broadcast
 
+on sepolia
 ```bash
 cd packages/workflow
 cre workflow simulate . \
   --target staging-settings \
+  --non-interactive \
+  --trigger-index 0 \
+  --http-payload @payload.json \
+  --broadcast
+```
+
+on tenderly vnet
+```bash
+cd packages/workflow
+cre workflow simulate . \
+  --target tenderly-vnet-settings \
   --non-interactive \
   --trigger-index 0 \
   --http-payload @payload.json \
@@ -179,6 +191,7 @@ Similar to the main workflow, WorldID verification can be tested locally using `
 
 ### 6b) Simulate with broadcast
 
+on sepolia
 ```bash
 cd packages/worldid-workflow
 cre workflow simulate . \
@@ -189,32 +202,17 @@ cre workflow simulate . \
   --broadcast
 ```
 
+on tenderly vnet
+```bash
+cd packages/worldid-workflow
+cre workflow simulate . \
+  --target tenderly-vnet-settings \
+  --non-interactive \
+  --trigger-index 0 \
+  --http-payload @payload.json \
+  --broadcast
+```
+
 This will:
 - Verify the World ID proof with the World ID Developer Portal API
 - Broadcast the verification result to `WorldIDRegistry` contract on Sepolia
-
-## 7) Troubleshooting
-
-- **`bun run dev:local` fails with "Missing required environment variables"**
-  Fill in the listed variables in the root `.env` file.
-
-- **API health check times out**
-  Check `/tmp/link-credit-api.log` for startup errors. Ensure `PLAID_CLIENT_ID`, `PLAID_SECRET`, and `WORKER_API_KEY` are set.
-
-- **`cre: command not found`**
-  Install CRE CLI (`brew install chainlink/tap/cre`) and restart shell.
-
-- **`cre workflow simulate` fails with schema/config errors**
-  Run `cre init` in a temp folder and compare generated template with this repo.
-
-- **CRE deployment rejected due to access**
-  Early Access may be required for DON deployment. Use `simulate` for local validation.
-
-- **API returns `CRE workflow configuration is missing`**
-  Ensure `.env` has `CRE_WORKFLOW_ID` and `CRE_WORKER_PRIVATE_KEY`.
-
-- **Plaid errors (`INVALID_ACCESS_TOKEN`, auth failures)**
-  Confirm sandbox keys and use sandbox Link flow only.
-
-- **Frontend cannot read score**
-  Verify `packages/contracts/deployed-addresses.json` has correct Sepolia addresses. Re-deploy if needed.

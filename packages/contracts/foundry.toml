@@ -15,7 +15,7 @@ fs_permissions = [{ access = "read-write", path = "./" }]
 [rpc_endpoints]
 sepolia = "${SEPOLIA_RPC_URL}"
 # Optional: Tenderly Sepolia Virtual TestNet RPC for testing
-# tenderly_virtualnet = "${TENDERLY_VIRTUALNET_RPC_URL}"
+tenderly = "${TENDERLY_VIRTUALNET_RPC_URL}"
 
 [fuzz]
 runs = 1000

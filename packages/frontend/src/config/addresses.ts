@@ -54,8 +54,26 @@ function resolveDefaultChainId(): number {
 
 const sepoliaAddresses = normalizeAddresses(deployed as Record<string, string | undefined>);
 
+// Address mapping: Tenderly uses the same addresses as Sepolia (because it's a fork)
+const CHAIN_ADDRESS_MAPPING: Record<number, number> = {
+  11155111: 11155111,      // Sepolia
+  99911155111: 11155111,   // Tenderly → use Sepolia addresses
+};
+
 export function getDeployedAddresses(currentChainId: number) {
-  void currentChainId;
+  // Get source chain ID for addresses
+  const sourceChainId = CHAIN_ADDRESS_MAPPING[currentChainId];
+
+  if (!sourceChainId) {
+    console.warn(`No address mapping for chain ${currentChainId}`);
+    return sepoliaAddresses; // Return Sepolia addresses by default
+  }
+
+  // Load addresses (currently only Sepolia addresses available)
+  if (sourceChainId === 11155111) {
+    return sepoliaAddresses;
+  }
+
   return sepoliaAddresses;
 }
 

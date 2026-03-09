@@ -1,17 +1,14 @@
 import { ConnectKitButton } from "connectkit";
 import { useAccount, useChainId, useSwitchChain } from "wagmi";
 import { activeChain } from "../config/wagmi";
-
-const NETWORK_NAMES: Record<number, string> = {
-  11155111: "Sepolia",
-};
+import { CHAIN_METADATA } from "../config/chains";
 
 function resolveNetworkName(
   chainId: number,
   chains: ReturnType<typeof useSwitchChain>["chains"]
 ): string {
   return (
-    NETWORK_NAMES[chainId] ||
+    CHAIN_METADATA[chainId as keyof typeof CHAIN_METADATA]?.displayName ||
     chains.find((chain) => chain.id === chainId)?.name ||
     `Chain ${chainId}`
   );
@@ -45,7 +42,7 @@ export function Header(): React.JSX.Element {
           >
             {chains.map((chain) => (
               <option key={chain.id} value={chain.id}>
-                {NETWORK_NAMES[chain.id] || chain.name}
+                {CHAIN_METADATA[chain.id as keyof typeof CHAIN_METADATA]?.displayName || chain.name}
               </option>
             ))}
           </select>

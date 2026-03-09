@@ -1,14 +1,26 @@
 import { getDefaultConfig } from "connectkit";
 import { createConfig, http } from "wagmi";
-import { sepolia } from "wagmi/chains";
 import { chainId, walletConnectProjectId } from "./addresses";
-import { createTenderlySepoliaVirtualNet } from "./chains/tenderly";
+import { sepolia, tenderlySepoliaVirtualTestnet } from "./chains";
 
+// Get enabled chains
+const chains = [];
+chains.push(sepolia);
+
+// Tenderly is only enabled when RPC URL is configured
 const tenderlyVirtualnetRpcUrl = import.meta.env.VITE_TENDERLY_VIRTUALNET_RPC_URL;
-const sepoliaLikeChain = tenderlyVirtualnetRpcUrl
-  ? createTenderlySepoliaVirtualNet(tenderlyVirtualnetRpcUrl)
-  : sepolia;
-const chains = [sepoliaLikeChain] as const;
+if (tenderlyVirtualnetRpcUrl) {
+  chains.push(tenderlySepoliaVirtualTestnet);
+}
+
+// Configure transport for each chain
+const transports: Record<number, ReturnType<typeof http>> = {
+  [sepolia.id]: http(),
+};
+
+if (tenderlyVirtualnetRpcUrl) {
+  transports[tenderlySepoliaVirtualTestnet.id] = http(tenderlyVirtualnetRpcUrl);
+}
 
 const chainById = new Map(chains.map((configuredChain) => [configuredChain.id, configuredChain]));
 
@@ -21,12 +33,8 @@ export const wagmiConfig = createConfig(
     appUrl: "https://link-credit.local",
     walletConnectProjectId,
     enableFamily: false,
-    chains,
-    transports: {
-      [sepoliaLikeChain.id]: tenderlyVirtualnetRpcUrl
-        ? http(tenderlyVirtualnetRpcUrl)
-        : http(),
-    },
+    chains: chains as any,
+    transports,
     ssr: false,
   })
 );

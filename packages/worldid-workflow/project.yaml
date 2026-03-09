@@ -6,7 +6,7 @@ staging-settings:
 tenderly-vnet-settings:
   rpcs:
     - chain-name: ethereum-testnet-sepolia
-      url: ${TENDERLY_VIRTUALNET_RPC_URL}
+      url: TENDERLY_VIRTUALNET_RPC_URL=https://virtual.sepolia.us-east.rpc.tenderly.co/edaa3140-d48d-4bf8-873f-b9472d772a85
 
 production-settings:
   rpcs:
