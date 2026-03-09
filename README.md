@@ -182,48 +182,14 @@ Direct links to code using Chainlink CRE APIs:
 All contracts are deployed on Tenderly Virtual TestNet (Sepolia-based):
 [https://dashboard.tenderly.co/explorer/vnet/edaa3140-d48d-4bf8-873f-b9472d772a85](https://dashboard.tenderly.co/explorer/vnet/edaa3140-d48d-4bf8-873f-b9472d772a85)
 
-**Key Contracts:**
-- CreditOracle: `0x0B955e39E469E4B70940e5642bd82665EC3296Ca`
-- WorldIDRegistry: `0xB3A16439983b766b3Ef11CD1De615B4cA53d6f5C`
-- Aave Pool (Proxy): `0xB55B1E49fDf5F98c93E0312085ff44A528D71BdF`
-- ProtocolDataProvider: `0x5F0117970A5Ac62F28c41e3B421DB0E018418BFD`
-- WETH: `0x4E88674FA8c3a66dcf79d2453159B09c5749B098`
-- WBTC: `0x9957A5C0a30CB4F71f6260CA61c03AB20fD5FC7F`
-- USDX: `0x3e7F0347b2F43C745032B6b5141718698a3D0128`
-
 #### CRE Workflow Execution
 
 Complete workflow execution guide with step-by-step instructions:
 [INTEGRATION.md](./INTEGRATION.md)
 
-**Quick Overview:**
-1. User authorizes Plaid Link (bank data access)
-2. Frontend triggers CRE workflow via API
-3. CRE workflow executes:
-   - Exchanges Plaid token (Confidential HTTP)
-   - Fetches bank data (balances + transactions)
-   - Computes credit score (rule-based + AI calibration)
-   - Writes score on-chain via `CreditOracle.onReport()`
-4. Verify on Tenderly Explorer: check `ScoreUpdated` events
+#### Tenderly Virtual TestNets' Role
 
-#### How CRE + Tenderly Virtual TestNets Solve Problems
-
-**Problem:** Privacy-preserving credit scoring for DeFi lending with lower collateral requirements for creditworthy users.
-
-**CRE's Role:**
-- Orchestrates multi-step off-chain data fetching (Plaid API) with on-chain writes
-- Confidential HTTP keeps bank data and API keys secure (TEE execution)
-- Eliminates need for centralized backend infrastructure
-- BFT consensus ensures scoring reliability across multiple nodes
-
-**Tenderly Virtual TestNets' Role:**
 - Isolated testing environment without affecting Sepolia mainnet state
 - Instant transaction confirmation for faster development iterations
 - State manipulation for testing edge cases (low balance, high debt scenarios)
 - Detailed debugging with stack traces and state diffs
-
-**Combined Value:**
-- Safe testing of privacy-sensitive workflows in isolated environment
-- Verify credit scoring logic with controlled bank data scenarios
-- Debug on-chain writes and event emissions with full visibility
-- Demonstrate end-to-end flow from off-chain data to on-chain lending decisions
