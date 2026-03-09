@@ -11,7 +11,7 @@ from score_calculator import calculate_credit_score
 
 
 ROOT = Path(__file__).resolve().parents[2]
-CONFIG_PATH = ROOT / "config.yaml"
+CONFIG_PATH = Path(__file__).parent / "config.yaml"
 
 
 def load_config(path: Path) -> Dict[str, Any]:

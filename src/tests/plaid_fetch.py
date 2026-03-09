@@ -138,7 +138,7 @@ class PlaidSandboxClient:
         return profile
 
 
-def build_client(config_path: Path = ROOT / "config.yaml") -> PlaidSandboxClient:
+def build_client(config_path: Path = Path(__file__).parent / "config.yaml") -> PlaidSandboxClient:
     load_env_from_dotenv(ROOT / ".env")
 
     client_id = os.environ.get("PLAID_CLIENT_ID", "")
@@ -155,7 +155,7 @@ def build_client(config_path: Path = ROOT / "config.yaml") -> PlaidSandboxClient
 
 if __name__ == "__main__":
     client = build_client()
-    cfg = load_config(ROOT / "config.yaml")
+    cfg = load_config(Path(__file__).parent / "config.yaml")
     personas = cfg["plaid"]["sandbox_personas"]
     out: Dict[str, Any] = {}
     for label, username in personas.items():

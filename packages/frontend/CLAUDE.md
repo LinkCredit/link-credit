@@ -45,7 +45,7 @@ bun test             # Run tests
 ### Implemented Features
 
 - ✅ Wallet integration (wagmi v3 + viem v2 + ConnectKit)
-- ✅ Multi-chain support (Sepolia + Tenderly fork RPC)
+- ✅ Multi-chain support (Sepolia + Tenderly Virtual TestNet RPC)
 - ✅ Plaid Link integration (OAuth flow with redirect handling)
 - ✅ Credit score display (real-time on-chain reading from CreditOracle)
 - ✅ LTV boost calculation (base LTV + credit boost)

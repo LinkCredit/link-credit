@@ -6,9 +6,9 @@ staging-settings:
     workflow-path: "./src/main.ts"
     config-path: "./config.staging.json"
 # ==========================================================================
-fork-settings:
+tenderly-vnet-settings:
   user-workflow:
-    workflow-name: "link-credit-worldid-fork"
+    workflow-name: "link-credit-worldid-vnet"
   workflow-artifacts:
     workflow-path: "./src/main.ts"
     config-path: "./config.staging.json"

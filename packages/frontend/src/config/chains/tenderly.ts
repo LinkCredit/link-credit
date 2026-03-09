@@ -10,10 +10,10 @@ function resolveExplorerUrl(rpcUrl: string): string {
   return `https://dashboard.tenderly.co/fork/${forkId}`;
 }
 
-export function createTenderlySepoliaFork(rpcUrl: string) {
+export function createTenderlySepoliaVirtualNet(rpcUrl: string) {
   return defineChain({
     id: 11155111,
-    name: "Tenderly Sepolia Fork",
+    name: "Tenderly Sepolia Virtual TestNet",
     nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
     rpcUrls: {
       default: { http: [rpcUrl] },
