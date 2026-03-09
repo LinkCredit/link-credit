@@ -154,36 +154,26 @@ Setup and end-to-end execution steps are in:
 
 ### Chainlink Usage
 
+**Chainlink CRE**
+
 Direct links to code using Chainlink CRE APIs:
 
-**CRE SDK Imports**
 - [packages/workflow/src/main.ts#L1-L17](packages/workflow/src/main.ts#L1-L17) - Import CRE SDK: `HTTPCapability`, `CronCapability`, `consensusIdenticalAggregation`, `EVMClient`, etc.
-
-**Trigger Registration**
 - [packages/workflow/src/main.ts#L224-L227](packages/workflow/src/main.ts#L224-L227) - Register HTTP and Cron triggers using `handler()` from CRE SDK
-
-**Confidential HTTP Requests**
 - [packages/workflow/src/main.ts#L83-L97](packages/workflow/src/main.ts#L83-L97) - Plaid token exchange using `httpClient.sendRequest()` with `consensusIdenticalAggregation()`
 - [packages/workflow/src/main.ts#L99-L108](packages/workflow/src/main.ts#L99-L108) - Plaid data fetch using `httpClient.sendRequest()` with consensus
 - [packages/workflow/src/main.ts#L115-L121](packages/workflow/src/main.ts#L115-L121) - OpenAI API call using `httpClient.sendRequest()` with consensus
-
-**Secrets Management**
 - [packages/workflow/src/main.ts#L240-L242](packages/workflow/src/main.ts#L240-L242) - Read secrets from Vault DON using `runtime.readSecret()`
-
-**On-chain Report Writing**
 - [packages/workflow/src/main.ts#L450-L484](packages/workflow/src/main.ts#L450-L484) - Write credit score on-chain using `EVMClient` and `runtime.report()`
 - [packages/contracts/src/CreditOracle.sol#L37-L51](packages/contracts/src/CreditOracle.sol#L37-L51) - Receive CRE reports via `onReport()` callback (IReceiver interface)
-
-**Chainlink Price Feeds**
-- [packages/contracts/script/DeployCreditMarket.s.sol#L57-L67](packages/contracts/script/DeployCreditMarket.s.sol#L57-L67) - Configure Chainlink ETH/USD and BTC/USD price feeds for Aave Oracle
-
-**World ID Workflow**
 - [packages/worldid-workflow/src/main.ts](packages/worldid-workflow/src/main.ts) - Second CRE workflow for World ID verification
 - [packages/contracts/src/WorldIDRegistry.sol#L37-L51](packages/contracts/src/WorldIDRegistry.sol#L37-L51) - Receive World ID verification reports
-
-**Configuration**
 - [packages/workflow/workflow.yaml](packages/workflow/workflow.yaml) - CRE workflow configuration (triggers, artifacts)
 - [packages/workflow/config.staging.json](packages/workflow/config.staging.json) - Chain selector and contract addresses
+
+**Chainlink Price Feeds**
+
+- [packages/contracts/script/DeployCreditMarket.s.sol#L57-L67](packages/contracts/script/DeployCreditMarket.s.sol#L57-L67) - Configure Chainlink ETH/USD and BTC/USD price feeds for Aave Oracle
 
 ### Tenderly Usage
 
